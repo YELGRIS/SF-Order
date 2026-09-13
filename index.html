@@ -9,14 +9,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script type="module">
-  // ── Firebase (Firestore) — cloud sync for saved orders & customers ──
+  // ── Firebase (Firestore) — cloud sync for saved orders, customers, AND
+  // predefined config (item catalogue, payment methods, colour themes) ──
   // No sign-in is used, so Firestore Security Rules must allow open
-  // read/write on the "orders" and "customers" collections, e.g.:
+  // read/write on the "orders", "customers" and "config" collections, e.g.:
   //   match /orders/{id}    { allow read, write: if true; }
   //   match /customers/{id} { allow read, write: if true; }
+  //   match /config/{id}    { allow read, write: if true; }
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
   import {
-    getFirestore, collection, doc, setDoc, deleteDoc, getDocs,
+    getFirestore, collection, doc, setDoc, deleteDoc, getDocs, onSnapshot,
     query, orderBy, limit, enableIndexedDbPersistence
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
@@ -35,9 +37,10 @@
   // flush automatically once the connection returns.
   enableIndexedDbPersistence(db).catch(() => {});
 
-  window.FB = { db, collection, doc, setDoc, deleteDoc, getDocs, query, orderBy, limit };
+  window.FB = { db, collection, doc, setDoc, deleteDoc, getDocs, onSnapshot, query, orderBy, limit };
   window.dispatchEvent(new Event('firebase-ready'));
 </script>
+
 <style>
   :root{
     --primary:#0B5E64; --primary-light:#E7F6F6; --secondary:#128C94; --accent:#FF9F1C; --bg-main:#EEF7F7;
@@ -83,7 +86,7 @@
   .tb-company{flex:1; text-align:center; color:#fff; font-family:'Baloo 2',sans-serif; font-weight:800; font-size:20px; letter-spacing:0.2px; text-shadow:1px 1px 0 rgba(0,0,0,0.2); padding:0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #helpBtn{position:relative; top:unset; left:unset; transform:unset; background:var(--accent); color:#1a1200; border:none; border-radius:var(--radius); padding:6px 14px; font-weight:800; font-size:12px; cursor:pointer; z-index:10; white-space:nowrap; display:flex; align-items:center; gap:4px; margin:0 auto;}
 
-  .editor{width:100%; background:var(--white); border-radius:0; padding:0; box-shadow:none; border:none; display:flex; flex-wrap:wrap;}
+  .editor{width:100%; background:var(--white); border-radius:0; padding:0; box-shadow:none; border:none; display:flex; flex-wrap:wrap; position:relative;}
   .editor > * {flex-basis: 100%;}
   label{font-size:12px; text-transform:uppercase; letter-spacing:0.4px; color:var(--primary); font-weight:800; display:block; margin:4px 0 2px;}
   .field-hint{font-size:11px; color:#5a6b6d; margin:0; line-height:1.2; font-weight:600;}
@@ -362,17 +365,41 @@
   }
 
   .buttons-watermark{width:100%; text-align:center; font-size:22px; opacity:0.55; margin-top:0; color:#fff;}
-  .action-buttons{width:100%; display:flex; gap:0; margin-top:0;}
-  .action-buttons button{flex:1; border:none; border-radius:var(--radius); padding:8px 2px; font-size:13px; font-weight:900; font-family:'Inter',sans-serif; cursor:pointer; color:#fff; display:flex; flex-direction:column; align-items:center; gap:2px; box-shadow:none;}
-  .action-buttons button .ic{font-size:18px;}
-  /* Solid (non-gradient) fills, each paired with the text colour that
-     gives it the strongest contrast rather than a fixed white default. */
-  #btnPay{background:#128C7E; color:#fff;}
-  #btnImage{background:var(--primary); color:#fff;}
-  #btnSave{background:var(--accent); color:#1a1200;}
-  #btnReset{background:#4a4a4a; color:#fff;}
-  .action-buttons button:disabled{opacity:0.55; cursor:not-allowed;}
+  .action-buttons{width:100%; display:flex; gap:6px; margin-top:4px;}
+  .action-buttons button{
+    flex:1; min-width:0; border:1px solid rgba(255,255,255,0.35); border-radius:calc(var(--radius) + 2px);
+    padding:9px 2px; font-size:12px; font-weight:900; font-family:'Inter',sans-serif; cursor:pointer;
+    color:#fff; display:flex; flex-direction:column; align-items:center; gap:2px;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s ease;
+  }
+  .action-buttons button:active{transform:translateY(1px) scale(0.98);}
+  .action-buttons button .ic{font-size:18px; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.28));}
+  /* Vibrant, semi-transparent fills — each with its own colour-tinted drop
+     shadow for depth, instead of the previous flat opaque blocks. */
+  #btnReset{background:rgba(90,95,115,0.80); color:#fff; box-shadow:0 4px 12px rgba(35,38,50,0.4);}
+  #btnEditLock{background:rgba(155,60,205,0.82); color:#fff; box-shadow:0 4px 14px rgba(130,35,175,0.42);}
+  #btnEditLock.discard-mode{background:rgba(217,68,68,0.82); box-shadow:0 4px 14px rgba(185,35,35,0.42);}
+  #btnPay{background:rgba(13,181,131,0.82); color:#fff; box-shadow:0 4px 14px rgba(6,150,104,0.42);}
+  #btnSave{background:rgba(255,159,28,0.85); color:#1a1200; box-shadow:0 4px 14px rgba(230,140,0,0.4);}
+  #btnImage{background:rgba(11,110,118,0.82); color:#fff; box-shadow:0 4px 14px rgba(11,110,118,0.42);}
+  .action-buttons button:disabled{opacity:0.42; cursor:not-allowed; box-shadow:none; transform:none;}
+  .action-buttons button.hidden{display:none;}
+  .action-buttons button.net-disabled{filter:grayscale(0.55);}
   #formMsg{width:100%; font-size:13px; text-align:center; min-height:16px; color:var(--primary); margin-top:0; font-weight:700;}
+
+  /* Read-only overlay shown over the whole entry area while a loaded
+     saved order hasn't had "Edit" tapped yet — blocks interaction with
+     every field underneath without hiding or restyling any of them. */
+  .editor-lock-overlay{
+    position:absolute; inset:0; z-index:50; cursor:not-allowed;
+    background:repeating-linear-gradient(135deg, rgba(0,0,0,0.03) 0 10px, rgba(0,0,0,0.055) 10px 20px);
+  }
+  .lock-badge{
+    position:sticky; top:8px; margin:8px auto 0; width:fit-content; display:block;
+    background:rgba(30,30,40,0.85); color:#fff; font-weight:800; font-size:12px;
+    padding:6px 14px; border-radius:999px; box-shadow:0 4px 12px rgba(0,0,0,0.35);
+  }
 
   .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:0;}
   .modal-box{background:#fff; border-radius:var(--radius); padding:0; max-height:85vh; overflow-y:auto; width:100%; font-weight:700; box-shadow:none; display:flex; flex-direction:column;}
@@ -447,6 +474,7 @@
 </div>
 
 <div class="editor">
+  <div class="editor-lock-overlay" id="editorLockOverlay" style="display:none;"><div class="lock-badge">🔒 Locked — tap Edit to change</div></div>
   <div class="row2" style="margin-bottom:0; position:relative;">
     <input type="text" id="custName" tabindex="3" maxlength="20" placeholder="Customer name (max 20)" oninput="scheduleUpdate(); showCustomerSuggestions('name');" onfocus="this.select()" onblur="hideCustomerSuggestionsDelayed()" onkeydown="handleEnterFocus(event, 'custPhone')">
     <input type="tel" id="custPhone" tabindex="4" maxlength="13" placeholder="Mobile (13 digits)" style="flex:0 0 130px; border-radius:var(--radius);" oninput="onPhoneInput(); showCustomerSuggestions('phone');" onfocus="this.select()" onblur="hideCustomerSuggestionsDelayed()" onkeydown="handleEnterFocus(event, 'desc_row_1')">
@@ -497,10 +525,11 @@
 
 <div class="buttons-watermark">💧</div>
 <div class="action-buttons">
-  <button id="btnReset" tabindex="500" onclick="resetOrder()"><span class="ic">🔄</span>New Bill</button>
-  <button id="btnPay" tabindex="501" onclick="sendPayment()"><span class="ic">💰</span>WA Pay</button>
-  <button id="btnSave" tabindex="502" onclick="saveOrder()"><span class="ic">💾</span>Save Bill</button>
-  <button id="btnImage" tabindex="503" onclick="saveAndSendImage()"><span class="ic">🖼️</span>WA Image</button>
+  <button id="btnReset" tabindex="500" onclick="resetOrder()"><span class="ic">🆕</span>New</button>
+  <button id="btnEditLock" class="hidden" tabindex="501" onclick="toggleEditLock()"><span class="ic">✏️</span>Edit</button>
+  <button id="btnPay" tabindex="502" onclick="sendPayment()"><span class="ic">💸</span>Pay</button>
+  <button id="btnSave" tabindex="503" onclick="saveOrder()"><span class="ic">💾</span>Save</button>
+  <button id="btnImage" tabindex="504" onclick="saveAndSendImage()"><span class="ic">🖼️</span>Image</button>
 </div>
 <div id="formMsg"></div>
 <div id="appLog" class="app-log" tabindex="0" title="Tap to expand activity log" onfocus="expandLog()"></div>
@@ -703,25 +732,24 @@ function setMsg(text, isError){
 }
 function expandLog(){ const el = $('appLog'); if(el) el.scrollTop = el.scrollHeight; }
 
+// ===================== Predefined config (items, receivers, themes) =====================
+// These carry NO hardcoded business data in this file. The live values
+// come entirely from Firestore's "config" collection (docs "items",
+// "receivers", "themes"), mirrored into localStorage exactly like orders
+// and customers: the local mirror loads first so entry stays instant even
+// offline, and a realtime Firestore listener (registered further down,
+// once Firebase is ready) keeps both the mirror and these live values in
+// sync with whatever any other device saves — in the background, without
+// ever blocking data entry. A device with neither a local mirror nor a
+// reachable Firestore doc simply starts with empty lists — the "Add New
+// Item" / "Add New Payment Method" forms (and the Manage screens) are
+// how the catalogue gets built from there, and every entry made that way
+// syncs to Firestore for every other device to pick up.
+
 const CONFIG = {
   company: { name: 'SREE FOUNDATION', address: 'Kuniyamuthur, Coimbatore' },
-  receivers: [
-    { name: 'Cash',               upi: null },
-    { name: 'Abirami',            upi: 'abirami.enterprises@icici' },
-    { name: 'Jagan',              upi: '9994949165@axl' },
-    { name: 'Vinodh Sreedharan',  upi: '9366111000@upi' }
-  ],
-  items: [
-    { name: 'BT can 670g',         rate: 160,  moq: 10, freePerMoq: 1 },
-    { name: 'BT can 700g',         rate: 165,  moq: 10, freePerMoq: 1 },
-    { name: 'Plain bottom',        rate: 115,  moq: 2,  freePerMoq: 0 },
-    { name: 'Design bottom',       rate: 120,  moq: 2,  freePerMoq: 0 },
-    { name: 'BT caps 6000',        rate: 4680, moq: 1,  freePerMoq: 0 },
-    { name: 'BT caps 5000',        rate: 3900, moq: 1,  freePerMoq: 0 },
-    { name: 'Pet cap 15000',       rate: 4900, moq: 1,  freePerMoq: 0 },
-    { name: 'Colour can 20L ₹140', rate: 140,  moq: 2,  freePerMoq: 0 },
-    { name: 'Colour can 10L ₹110', rate: 110,  moq: 1,  freePerMoq: 0 }
-  ],
+  receivers: [],   // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('receivers', ...)
+  items: [],       // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('items', ...)
   upiRef: 'YELGRIS',
   rowCount: 5,
   scanNote: {
@@ -792,45 +820,13 @@ function handleEnterFocus(e, nextId) {
 }
 
 let THEME = {};
-// Each theme's primary/secondary/accent are tuned to meet WCAG AA contrast
-// (>=4.5:1, or >=3:1 for accent used only behind white button text) when
-// used as text or button colour on the app's white/light backgrounds.
-// primaryLight/bgMain/rowColors stay pale since they're only ever
-// backgrounds, painted under the dark --ink text colour.
-const STORED_THEMES = [
-  {
-    name: 'Tropical Sunset',
-    primary: '#C1440E', primaryLight: '#FFE5CC', secondary: '#A85A00', accent: '#CC5F00',
-    bgMain: '#FFF8F0', rowColors: ['#FFE5B4', '#B4E7FF', '#E5FFB4', '#FFB4E5', '#F5B4FF', '#FFE5CC']
-  },
-  {
-    name: 'Ocean Breeze',
-    primary: '#00618C', primaryLight: '#CAF0F8', secondary: '#00728F', accent: '#007A96',
-    bgMain: '#F0F9FF', rowColors: ['#B4E7FF', '#E5FFB4', '#FFB4E5', '#F5B4FF', '#FFE5CC', '#FFE5B4']
-  },
-  {
-    name: 'Forest Garden',
-    primary: '#2D6A4F', primaryLight: '#D8F3DC', secondary: '#2F7A52', accent: '#5C8A3A',
-    bgMain: '#F1FAEE', rowColors: ['#E5FFB4', '#FFB4E5', '#F5B4FF', '#FFE5CC', '#FFE5B4', '#B4E7FF']
-  },
-  {
-    name: 'Berry Blast',
-    primary: '#A4161A', primaryLight: '#FFE5E5', secondary: '#C1121F', accent: '#D33F49',
-    bgMain: '#FFF0F1', rowColors: ['#FFB4E5', '#F5B4FF', '#FFE5CC', '#FFE5B4', '#B4E7FF', '#E5FFB4']
-  },
-  {
-    name: 'Golden Harmony',
-    primary: '#8A6D1B', primaryLight: '#FFF8DC', secondary: '#8F6508', accent: '#B4700A',
-    bgMain: '#FFFAF0', rowColors: ['#F5B4FF', '#FFE5CC', '#FFE5B4', '#B4E7FF', '#E5FFB4', '#FFB4E5']
-  },
-  {
-    name: 'Purple Dreams',
-    primary: '#6A0572', primaryLight: '#F0E6F6', secondary: '#8A2BE2', accent: '#9B3FD1',
-    bgMain: '#FBF6FF', rowColors: ['#FFE5CC', '#FFE5B4', '#B4E7FF', '#E5FFB4', '#FFB4E5', '#F5B4FF']
-  }
-];
+// Live theme palette — no hardcoded palette in this file; loaded from the
+// local mirror (loadConfigFromLocal) and kept in sync with Firestore's
+// config/themes doc (watchConfigDoc), where the themes are already saved.
+let STORED_THEMES = [];
 
 function applyRandomTheme(){
+  if(!STORED_THEMES.length) return; // config not loaded yet — CSS defaults stay in effect
   const themeIdx = Math.floor(Math.random() * STORED_THEMES.length);
   const theme = STORED_THEMES[themeIdx];
   THEME = { name: theme.name, primary: theme.primary };
@@ -1221,7 +1217,8 @@ function saveNewItem(){
   } else {
     CONFIG.items.push({ name, rate, moq: moq > 0 ? moq : 1, freePerMoq: free });
   }
-  saveItemsToLocal();
+  persistConfigLocal('items', CONFIG.items);
+  pushConfigToCloud('items', CONFIG.items);
   toggleModal('newItemModal', false);
 
   if(newItemContext === 'order'){
@@ -1276,7 +1273,8 @@ function deleteItemAt(idx){
   const it = CONFIG.items[idx];
   if(!confirm(`Delete "${it.name}"? Past bills that used it are unaffected, but this can't be undone here.`)) return;
   CONFIG.items.splice(idx, 1);
-  saveItemsToLocal();
+  persistConfigLocal('items', CONFIG.items);
+  pushConfigToCloud('items', CONFIG.items);
   renderManageItemsList();
 }
 
@@ -1338,7 +1336,8 @@ function saveNewPayment(){
     CONFIG.receivers.push({ name, upi: upi || null });
     targetIdx = CONFIG.receivers.length - 1;
   }
-  saveReceiversToLocal();
+  persistConfigLocal('receivers', CONFIG.receivers);
+  pushConfigToCloud('receivers', CONFIG.receivers);
   toggleModal('newPaymentModal', false);
 
   if(newPaymentContext === 'order'){
@@ -1389,45 +1388,91 @@ function renderManagePaymentList(){
 
 function togglePaymentDisabled(idx){
   CONFIG.receivers[idx].disabled = !CONFIG.receivers[idx].disabled;
-  saveReceiversToLocal();
+  persistConfigLocal('receivers', CONFIG.receivers);
+  pushConfigToCloud('receivers', CONFIG.receivers);
   renderManagePaymentList();
 }
 
-// ===================== Items & receivers persistence =====================
-// This app has no server for its item/payment config, so both full lists
-// (built-in defaults plus anything added/edited/hidden) are mirrored to
-// localStorage as the source of truth from the second load onward.
+// ===================== Items, receivers & themes: cloud + local mirror =====================
+// Same local-first pattern as orders/customers below: the local mirror is
+// read synchronously at startup so entry is instant even before Firestore
+// responds (or entirely offline), and stays the fallback forever after.
+// Firestore keeps every device's mirror in sync via a realtime listener
+// (watchConfigDoc, wired up once Firebase is ready — see "firebase-ready"
+// handlers further down) that fires immediately with whatever's cached
+// and again on every future change, from any device, in the background.
 const LS_ITEMS_KEY = 'sf_items_v1';
 const LS_RECEIVERS_KEY = 'sf_receivers_v1';
+const LS_THEMES_KEY = 'sf_themes_v1';
+const CONFIG_LS_KEYS = { items: LS_ITEMS_KEY, receivers: LS_RECEIVERS_KEY, themes: LS_THEMES_KEY };
 
-function loadItemsAndReceivers(){
-  try{
-    const savedItems = localStorage.getItem(LS_ITEMS_KEY);
-    if(savedItems){
-      const parsed = JSON.parse(savedItems);
-      if(Array.isArray(parsed) && parsed.length) CONFIG.items = parsed;
-    } else {
-      saveItemsToLocal();
-    }
-  }catch(e){ /* storage unavailable — built-in items still work */ }
-
-  try{
-    const savedReceivers = localStorage.getItem(LS_RECEIVERS_KEY);
-    if(savedReceivers){
-      const parsed = JSON.parse(savedReceivers);
-      if(Array.isArray(parsed) && parsed.length) CONFIG.receivers = parsed;
-    } else {
-      saveReceiversToLocal();
-    }
-  }catch(e){ /* storage unavailable — built-in receivers still work */ }
-}
-function saveItemsToLocal(){
-  try{ localStorage.setItem(LS_ITEMS_KEY, JSON.stringify(CONFIG.items)); }
+function persistConfigLocal(kind, list){
+  try{ localStorage.setItem(CONFIG_LS_KEYS[kind], JSON.stringify(list)); }
   catch(e){ /* storage full/unavailable — changes still usable this session */ }
 }
-function saveReceiversToLocal(){
-  try{ localStorage.setItem(LS_RECEIVERS_KEY, JSON.stringify(CONFIG.receivers)); }
-  catch(e){ /* storage full/unavailable — changes still usable this session */ }
+function readConfigLocal(kind){
+  try{ const p = JSON.parse(localStorage.getItem(CONFIG_LS_KEYS[kind]) || 'null'); return Array.isArray(p) ? p : null; }
+  catch(e){ return null; }
+}
+
+// Loads items/receivers/themes from the local mirror for instant, offline-
+// capable entry. No hardcoded business data lives in this file — a
+// device with no local mirror yet simply starts empty and waits for
+// watchConfigDoc (below) to pull whatever's already saved in Firestore.
+function loadConfigFromLocal(){
+  CONFIG.items = readConfigLocal('items') || [];
+  CONFIG.receivers = readConfigLocal('receivers') || [];
+  STORED_THEMES = readConfigLocal('themes') || [];
+}
+
+// Fire-and-forget push to Firestore, exactly like saveOrderToCloud/
+// upsertCustomerCloud — never awaited by a caller that needs to stay
+// responsive; a failure just leaves it queued for Firestore's own
+// offline retry once the connection is back.
+async function pushConfigToCloud(kind, list){
+  if(!fbReady()) return;
+  try{
+    const { db, doc, setDoc } = window.FB;
+    await setDoc(doc(db, 'config', kind), { list, updatedAt: Date.now() });
+  }catch(e){ /* offline — local mirror already has it; retried once online */ }
+}
+
+// One realtime listener per config doc. Fires immediately with whatever
+// Firestore already has cached locally (near-instant, no network wait
+// thanks to enableIndexedDbPersistence), then again on every future
+// change from any device — that's the "background sync" half. Since the
+// data is already saved in Firestore, this never needs to seed anything;
+// it only writes back if this device already has local entries that
+// Firestore genuinely has no doc for yet (e.g. this exact config doc was
+// deleted server-side) — never with an empty list.
+function watchConfigDoc(kind, applyFn){
+  if(!fbReady()) return;
+  const { db, doc, onSnapshot, setDoc } = window.FB;
+  let seeded = false;
+  onSnapshot(doc(db, 'config', kind), snap => {
+    if(snap.exists()){
+      const list = snap.data().list;
+      if(Array.isArray(list) && list.length){
+        applyFn(list);
+        persistConfigLocal(kind, list);
+        refreshOpenConfigUI();
+      }
+    } else if(!seeded){
+      seeded = true;
+      const current = kind === 'items' ? CONFIG.items : kind === 'receivers' ? CONFIG.receivers : STORED_THEMES;
+      if(current && current.length) setDoc(doc(db, 'config', kind), { list: current, updatedAt: Date.now() }).catch(() => {});
+    }
+  }, () => { /* offline — local mirror (already applied) keeps things working */ });
+}
+
+// If a device is looking at the Manage Items / Manage Payment Methods list
+// when a change arrives from another device, refresh it in place instead
+// of leaving it showing stale data until the modal is reopened.
+function refreshOpenConfigUI(){
+  const itemsModal = document.getElementById('manageItemsModal');
+  if(itemsModal && itemsModal.style.display !== 'none') renderManageItemsList();
+  const payModal = document.getElementById('managePaymentModal');
+  if(payModal && payModal.style.display !== 'none') renderManagePaymentList();
 }
 
 
@@ -1661,52 +1706,40 @@ function updateEditorSummary(data){
 }
 
 function orderImageTemplate(data, nonCashAllocations){
-  const hasFree = data.rows.some(r => r.freeVal > 0);
-  const theadHtml = hasFree
-    ? `<tr><th>#</th><th>Item</th><th>Qty</th><th>Free</th><th>Rate</th><th>Amt</th></tr>`
-    : `<tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Amt</th></tr>`;
+  // Column layout intentionally mirrors the entry screen's items table
+  // exactly: always #, Item, Qty, Free, Rate, Amt (Free column always
+  // present, shown as "-" when unused) — the bill image is never a
+  // differently-shaped table from what was just filled in on screen.
+  const theadHtml = `<tr><th>#</th><th>Item</th><th>Qty</th><th>Free</th><th>Rate</th><th>Amt</th></tr>`;
 
   const rowsHtml = data.rows.map((r, idx) => {
     const rowStyle = getRandomDynamicRowStyle(idx + 1);
-    return hasFree ?
-    `<tr style="${rowStyle}">
+    return `<tr style="${rowStyle}">
       <td>${r.sno}</td>
       <td class="d"><span class="img-item-name">${esc(r.desc)}</span></td>
       <td>${r.qty}</td>
       <td>${r.freeVal > 0 ? `<span class="img-free-lbl">${r.freeVal}</span>` : '-'}</td>
       <td>${fmt(r.rate)}</td>
       <td>${fmt(r.amt)}</td>
-    </tr>` :
-    `<tr style="${rowStyle}">
-      <td>${r.sno}</td>
-      <td class="d"><span class="img-item-name">${esc(r.desc)}</span></td>
-      <td>${r.qty}</td>
-      <td>${fmt(r.rate)}</td>
-      <td>${fmt(r.amt)}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="${hasFree ? 6 : 5}" class="empty">No items added</td></tr>`;
+  }).join('') || `<tr><td colspan="6" class="empty">No items added</td></tr>`;
 
   const itemCountStr = String(data.itemCount).slice(-2);
   const totalQtyStr = String(data.totalQty).slice(-4);
   const totalFreeStr = data.totalFree > 0 ? String(data.totalFree).slice(-3) : '-';
   const qtyPlusFreeStr = data.totalFree > 0 ? String(data.totalQty + data.totalFree).slice(-4) : '-';
 
-  const footerHtml = data.itemCount > 1 ? (hasFree ? `
+  // Same six footer cells, in the same order, as the entry screen's
+  // tfoot: count | caption | qty | free | qty+free (or "-") | amount.
+  const footerHtml = data.itemCount > 1 ? `
     <tr class="subtotal-row" style="background:var(--primary-light); font-weight:900;">
       <td style="text-align:center; padding:4px 2px; font-size:14px;">${itemCountStr}</td>
-      <td style="text-align:left; padding:4px 2px;">Subtotals & Counts</td>
-      <td style="text-align:center; padding:4px 2px;">${totalQtyStr} <span style="color:#1a7d3a;">+</span></td>
-      <td style="text-align:center; padding:4px 2px;">${totalFreeStr}</td>
-      <td style="text-align:center; padding:4px 2px;"><span style="color:var(--primary);">=</span> ${qtyPlusFreeStr}</td>
-      <td style="text-align:right; padding:4px 2px;">₹${String(Math.round(data.subtotalVal)).slice(-7)}</td>
-    </tr>` : `
-    <tr class="subtotal-row" style="background:var(--primary-light); font-weight:900;">
-      <td style="text-align:center; padding:4px 2px; font-size:14px;">${itemCountStr}</td>
-      <td style="text-align:left; padding:4px 2px;">Subtotals & Counts</td>
+      <td style="text-align:left; padding:4px 2px;">Counts and Sub Total</td>
       <td style="text-align:center; padding:4px 2px;">${totalQtyStr}</td>
-      <td style="text-align:center; padding:4px 2px;">-</td>
+      <td style="text-align:center; padding:4px 2px;">${totalFreeStr}</td>
+      <td style="text-align:center; padding:4px 2px;">${qtyPlusFreeStr}</td>
       <td style="text-align:right; padding:4px 2px;">₹${String(Math.round(data.subtotalVal)).slice(-7)}</td>
-    </tr>`) : '';
+    </tr>` : '';
 
   const discRow = data.discountVal > 0 ? `<div class="row"><span>${esc(data.discountLabelText)}</span><span>${data.discountOp}${inr(data.discountVal)}</span></div>` : '';
   // Payment methods block: row number (single digit) + name + 2 spaces + UPI id
@@ -1827,7 +1860,7 @@ async function renderOrderImage(){
 
   $('btnPay').disabled = !isValid;
   $('btnImage').disabled = !isValid;
-  $('btnSave').disabled = !isValid;
+  $('btnSave').disabled = !isValid || isLocked; // a locked, just-loaded order has nothing new to save yet
 
   if(!isValid){
     imageWrap.style.display = 'none';
@@ -2040,9 +2073,9 @@ function requirePhone(data){
 // own flow finishes, since "Open WA" is a one-shot action, not a status
 // that should linger.
 const ACTION_DEFAULTS = {
-  btnSave:  { icon: '💾', text: 'Save Bill' },
-  btnPay:   { icon: '💰', text: 'WA Pay' },
-  btnImage: { icon: '🖼️', text: 'WA Image' }
+  btnSave:  { icon: '💾', text: 'Save' },
+  btnPay:   { icon: '💸', text: 'Pay' },
+  btnImage: { icon: '🖼️', text: 'Image' }
 };
 function setActionLabel(btnId, icon, text){
   const btn = $(btnId);
@@ -2083,6 +2116,13 @@ async function runBillAndImageFlow(btnId, buildWaUrl){
   // form is caught here — before any tab is opened — instead of flashing
   // a blank tab that immediately has to be closed again.
   if($(btnId).disabled) return;
+  // Connection-sensitive guard: WhatsApp genuinely can't send without a
+  // network, so fail fast with a clear message instead of opening (and
+  // then having to close) a tab that can never actually go anywhere.
+  if(!navigator.onLine){
+    setMsg('Offline — connect to the internet to send via WhatsApp.', true);
+    return;
+  }
 
   const btn = $(btnId);
   const waWindow = window.open('', '_blank'); // reserved now, navigated later
@@ -2165,6 +2205,95 @@ async function saveAndSendImage(){
 // the UI never has to wait on the network to feel correct.
 let currentOrderId = null;
 let isDirty = true; // true = current form doesn't match a saved bill yet
+
+// ── Loaded-order lock/edit/discard state ──
+// A brand-new (unsaved) order is always fully editable — this only kicks
+// in once an existing saved order has been loaded (history list / ‹ ›
+// cycling), so a loaded bill can't be changed by accident: it opens
+// locked, "Edit" unlocks it and captures a snapshot, and "Discard"
+// (the same button, relabelled) restores that snapshot and re-locks.
+let isLoadedExisting = false;
+let isLocked = false;
+let editSnapshot = null;
+
+function lockEntries(){
+  isLocked = true;
+  const overlay = $('editorLockOverlay');
+  if(overlay) overlay.style.display = 'block';
+  $('btnSave').disabled = true;
+}
+function unlockEntries(){
+  isLocked = false;
+  const overlay = $('editorLockOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+function captureEditSnapshot(){
+  const rows = [];
+  document.querySelectorAll('[id^="desc_row_"]').forEach(el => {
+    const sno = el.id.split('_').pop();
+    rows.push({ sno, desc: el.value, qty: $(`qty_row_${sno}`)?.value || '', free: $(`free_row_${sno}`)?.value || '', rate: $(`rate_row_${sno}`)?.value || '' });
+  });
+  return {
+    orderDate: $('orderDate').value,
+    custName: $('custName').value,
+    custPhone: $('custPhone').value,
+    discountOp: $('discountOp').dataset.op,
+    discountLabel: $('discountLabel').value,
+    discountVal: $('discountVal').value,
+    rows,
+    paymentRows: JSON.parse(JSON.stringify(paymentRows))
+  };
+}
+function restoreEditSnapshot(snap){
+  if(!snap) return;
+  $('orderDate').value = snap.orderDate;
+  $('custName').value = snap.custName;
+  $('custPhone').value = snap.custPhone; onPhoneInput();
+  $('discountOp').dataset.op = snap.discountOp; $('discountOp').textContent = snap.discountOp === '+' ? '+' : '−';
+  $('discountLabel').value = snap.discountLabel;
+  $('discountVal').value = snap.discountVal;
+  snap.rows.forEach(r => {
+    if($(`desc_row_${r.sno}`)) $(`desc_row_${r.sno}`).value = r.desc;
+    if($(`qty_row_${r.sno}`)) $(`qty_row_${r.sno}`).value = r.qty;
+    if($(`free_row_${r.sno}`)) $(`free_row_${r.sno}`).value = r.free;
+    if($(`rate_row_${r.sno}`)) $(`rate_row_${r.sno}`).value = r.rate;
+  });
+  paymentRows = snap.paymentRows;
+  renderPaymentRows();
+  scheduleUpdate();
+}
+
+// The single Edit/Discard button toggles between the two states. Save
+// stays forced-disabled the moment editing starts, and only re-enables
+// itself once a real change is made — scheduleUpdate()'s existing
+// debounced renderOrderImage() is what actually flips it back on the
+// instant the (now-unlocked) data becomes dirty, exactly like it always
+// has for a brand-new order.
+function toggleEditLock(){
+  if(!isLoadedExisting) return;
+  const btn = $('btnEditLock');
+  if(isLocked){
+    editSnapshot = captureEditSnapshot();
+    unlockEntries();
+    $('btnSave').disabled = true;
+    $('btnSave').dataset.state = 'done';
+    setActionLabel('btnSave', '✅', 'Saved');
+    btn.classList.add('discard-mode');
+    setActionLabel('btnEditLock', '↩️', 'Discard');
+    setMsg('Editing enabled — change what you need, then Save (or Discard to undo).', false);
+  } else {
+    restoreEditSnapshot(editSnapshot);
+    editSnapshot = null;
+    lockEntries();
+    btn.classList.remove('discard-mode');
+    setActionLabel('btnEditLock', '✏️', 'Edit');
+    isDirty = false;
+    $('btnSave').dataset.state = 'done';
+    setActionLabel('btnSave', '✅', 'Saved');
+    setMsg('Changes discarded — back to the saved version.', false);
+  }
+}
 const LS_ORDERS_KEY = 'sf_orders_cache_v1';
 const LS_CUSTOMERS_KEY = 'sf_customers_cache_v1';
 
@@ -2304,6 +2433,11 @@ async function refreshCustomerCache(){
   }catch(e){ /* offline on first load — local cache still works, will retry once online */ }
 }
 window.addEventListener('firebase-ready', refreshCustomerCache);
+window.addEventListener('firebase-ready', () => {
+  watchConfigDoc('items', list => { CONFIG.items = list; });
+  watchConfigDoc('receivers', list => { CONFIG.receivers = list; });
+  watchConfigDoc('themes', list => { STORED_THEMES = list; });
+});
 
 // ---- Customer name/phone suggestions ----
 function showCustomerSuggestions(source){
@@ -2466,7 +2600,13 @@ function loadOrderFromCloud(id){
   isDirty = false; // this content is exactly what's already saved for this order
   $('btnSave').dataset.state = 'done';
   setActionLabel('btnSave', '✅', 'Saved');
-  setMsg('Loaded order ' + (o.orderNo || ''), false);
+  isLoadedExisting = true;
+  editSnapshot = null;
+  const editBtn = $('btnEditLock');
+  editBtn.classList.remove('hidden', 'discard-mode');
+  setActionLabel('btnEditLock', '✏️', 'Edit');
+  lockEntries();
+  setMsg('Loaded order ' + (o.orderNo || '') + ' — locked; tap Edit to change it.', false);
 }
 // ================== end cloud sync ==================
 
@@ -2506,6 +2646,17 @@ async function saveOrder(){
 }
 
 function resetOrder(){
+  if(isLoadedExisting && !isLocked && isDirty){
+    if(!confirm('Discard unsaved changes to this order and start a new bill?')) return;
+  }
+  isLoadedExisting = false;
+  editSnapshot = null;
+  unlockEntries();
+  const editBtn = $('btnEditLock');
+  editBtn.classList.add('hidden');
+  editBtn.classList.remove('discard-mode');
+  setActionLabel('btnEditLock', '✏️', 'Edit');
+
   $('custName').value = ''; $('custPhone').value = '';
   $('phoneHint').textContent = 'Optional — required only to send on WhatsApp';
   $('phoneHint').className = 'field-hint';
@@ -2530,7 +2681,26 @@ function resetOrder(){
 
 function toggleModal(id, show){ $(id).style.display = show ? 'flex' : 'none'; }
 
-loadItemsAndReceivers();
+// ── Connection-sensitive action bar ──
+// Pay/Image genuinely need a network to reach WhatsApp; Save doesn't
+// (it's local-first). Rather than let them fail silently, dim them and
+// say so the moment the browser reports offline, and clear that the
+// moment it's back — this runs alongside, not instead of, the normal
+// validity-based enabling in renderOrderImage().
+function updateConnectivityUI(){
+  const offline = !navigator.onLine;
+  ['btnPay', 'btnImage'].forEach(id => {
+    const b = $(id);
+    if(!b) return;
+    b.classList.toggle('net-disabled', offline);
+    b.title = offline ? 'Needs an internet connection to send via WhatsApp' : '';
+  });
+  if(offline) setMsg('Offline — Save still works locally; WhatsApp actions need a connection.', true);
+}
+window.addEventListener('online', updateConnectivityUI);
+window.addEventListener('offline', updateConnectivityUI);
+
+loadConfigFromLocal();
 randomizeAppreciation(); 
 applyRandomTheme();
 setDefaultDate();
@@ -2538,6 +2708,7 @@ $('orderNo').value = deriveOrderNo($('orderDate').value);
 renderPaymentRows();
 buildRows();
 renderOrderImage();
+updateConnectivityUI();
 setInterval(refreshOrderNo, 60000);
 
 setTimeout(() => { const first = document.querySelector('#itemsBody tr'); if(first) openItemModal(first); }, 250);
