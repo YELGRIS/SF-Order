@@ -488,6 +488,17 @@
   button.finish-btn{background:var(--accent); color:#1a1200; margin-top:4px; font-size:15px;}
   #qtyCustomInput{width:100%; margin-bottom:4px;}
   .qty-grid button.others-btn{border-style:dashed; font-style:italic; font-size:12px; padding:2px 1px; background:#fff !important; color:var(--ink) !important; border-color:var(--primary) !important;}
+
+  /* Hide these elements during image capture */
+  .hide-on-capture{ display:none !important; }
+
+  /* Compact entry screen - no scrolling needed */
+  .editor-wrap{ padding:0 8px 16px; }
+  .card{ margin-bottom:6px; padding:6px; }
+  .field-row{ margin-bottom:4px; }
+
+  /* Make action bar and log hidden during capture */
+  .action-bar.hide-on-capture, .app-log.hide-on-capture{ display:none; }
 </style>
 </head>
 <body>
@@ -801,7 +812,12 @@ const CONFIG = {
   items: [],       // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('items', ...)
   upiRef: '',
   rowCount: 5,
-  scanNote: { en1: '', ta1: '', en2: '', ta2: '' },
+  scanNote: {
+    en1: '🔹 If your amount is above ₹2,000, forward this QR to another nearby mobile, open it and scan from the payment mobile.',
+    ta1: '🔹 தொகை ₹2,000-க்கு மேல் இருந்தால், இந்த QR கோடை அருகில் உள்ள மற்றொரு மொபைலுக்கு அனுப்பி, பணம் செலுத்தும் மொபைலில் திறந்து ஸ்கேன் செய்யவும்.',
+    en2: '🔹 Send a screenshot of payment showing the payment reference number. Thank you for your prompt payment!',
+    ta2: '🔹 பணம் செலுத்திய பிறகு, பணம் செலுத்தியதற்கான ரெஃபரன்ஸ் நம்பர் தெரியும்படி ஸ்கிரீன்ஷாட் அனுப்பவும். உங்கள் உடனடி பணம் செலுத்தலுக்கு நன்றி!'
+  },
   paymentMessageTemplate: ''
 };
 
@@ -2116,7 +2132,12 @@ async function capturePng(node){
   let sourceCanvas = null, lastErr;
   for(let i = 0; i < attempts.length; i++){
     try{
-      sourceCanvas = await withTimeout(html2canvas(node, attempts[i]), 12000, 'Image rendering timed out.');
+      sourceCanvas = await withTimeout(const actionBar = document.querySelector('.action-bar');
+    const appLog = document.querySelector('.app-log');
+    if(actionBar) actionBar.classList.add('hide-on-capture');
+    if(appLog) appLog.classList.add('hide-on-capture');
+
+    html2canvas(node, attempts[i]), 12000, 'Image rendering timed out.');
       break;
     }catch(e){
       lastErr = e;
@@ -2135,7 +2156,10 @@ async function capturePng(node){
     throw new Error('Image creation failed.');
   }
   logMsg('Bill image generated (9:16).', 'success');
-  return blob;
+  if(actionBar) actionBar.classList.remove('hide-on-capture');
+      if(appLog) appLog.classList.remove('hide-on-capture');
+      
+      return blob;
 }
 
 // Session-only cache of file handles, keyed by order id, so re-saving the
