@@ -375,14 +375,18 @@
   }
   .action-buttons button:active{transform:translateY(1px) scale(0.98);}
   .action-buttons button .ic{font-size:18px; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.28));}
-  /* Vibrant, semi-transparent fills — each with its own colour-tinted drop
-     shadow for depth, instead of the previous flat opaque blocks. */
-  #btnReset{background:rgba(90,95,115,0.80); color:#fff; box-shadow:0 4px 12px rgba(35,38,50,0.4);}
-  #btnEditLock{background:rgba(155,60,205,0.82); color:#fff; box-shadow:0 4px 14px rgba(130,35,175,0.42);}
-  #btnEditLock.discard-mode{background:rgba(217,68,68,0.82); box-shadow:0 4px 14px rgba(185,35,35,0.42);}
+  /* Fixed left-hand pair (always visible): WhatsApp Pay, then Save+open-
+     WhatsApp-chat. Right-hand pair swaps as a unit with the view/edit
+     mode — .slot3/.slot4 pin position via flex order regardless of
+     which of the two buttons sharing that slot is the visible one. */
+  .action-buttons .slot3{order:3;}
+  .action-buttons .slot4{order:4;}
   #btnPay{background:rgba(13,181,131,0.82); color:#fff; box-shadow:0 4px 14px rgba(6,150,104,0.42);}
-  #btnSave{background:rgba(255,159,28,0.85); color:#1a1200; box-shadow:0 4px 14px rgba(230,140,0,0.4);}
   #btnImage{background:rgba(11,110,118,0.82); color:#fff; box-shadow:0 4px 14px rgba(11,110,118,0.42);}
+  #btnReset{background:rgba(90,95,115,0.80); color:#fff; box-shadow:0 4px 12px rgba(35,38,50,0.4);}
+  #btnDiscard{background:rgba(217,68,68,0.82); color:#fff; box-shadow:0 4px 14px rgba(185,35,35,0.42);}
+  #btnEditLock{background:rgba(155,60,205,0.82); color:#fff; box-shadow:0 4px 14px rgba(130,35,175,0.42);}
+  #btnSave{background:rgba(255,159,28,0.85); color:#1a1200; box-shadow:0 4px 14px rgba(230,140,0,0.4);}
   .action-buttons button:disabled{opacity:0.42; cursor:not-allowed; box-shadow:none; transform:none;}
   .action-buttons button.hidden{display:none;}
   .action-buttons button.net-disabled{filter:grayscale(0.55);}
@@ -525,11 +529,12 @@
 
 <div class="buttons-watermark">💧</div>
 <div class="action-buttons">
-  <button id="btnReset" tabindex="500" onclick="resetOrder()"><span class="ic">🆕</span>New</button>
-  <button id="btnEditLock" class="hidden" tabindex="501" onclick="toggleEditLock()"><span class="ic">✏️</span>Edit</button>
-  <button id="btnPay" tabindex="502" onclick="sendPayment()"><span class="ic">💸</span>Pay</button>
-  <button id="btnSave" tabindex="503" onclick="saveOrder()"><span class="ic">💾</span>Save</button>
-  <button id="btnImage" tabindex="504" onclick="saveAndSendImage()"><span class="ic">🖼️</span>Image</button>
+  <button id="btnPay" tabindex="500" onclick="sendPayment()"><span class="ic">💸</span>WA Pay</button>
+  <button id="btnImage" tabindex="501" onclick="saveAndSendImage()"><span class="ic">🖼️</span>WA Chat</button>
+  <button id="btnReset" class="slot3" tabindex="502" onclick="clickNew()"><span class="ic">🆕</span>New</button>
+  <button id="btnDiscard" class="slot3 hidden" tabindex="502" onclick="clickDiscard()"><span class="ic">↩️</span>Discard</button>
+  <button id="btnEditLock" class="slot4" tabindex="503" onclick="clickEdit()"><span class="ic">✏️</span>Edit</button>
+  <button id="btnSave" class="slot4 hidden" tabindex="503" onclick="saveOrder()"><span class="ic">💾</span>Save</button>
 </div>
 <div id="formMsg"></div>
 <div id="appLog" class="app-log" tabindex="0" title="Tap to expand activity log" onfocus="expandLog()"></div>
@@ -2074,8 +2079,8 @@ function requirePhone(data){
 // that should linger.
 const ACTION_DEFAULTS = {
   btnSave:  { icon: '💾', text: 'Save' },
-  btnPay:   { icon: '💸', text: 'Pay' },
-  btnImage: { icon: '🖼️', text: 'Image' }
+  btnPay:   { icon: '💸', text: 'WA Pay' },
+  btnImage: { icon: '🖼️', text: 'WA Chat' }
 };
 function setActionLabel(btnId, icon, text){
   const btn = $(btnId);
@@ -2206,15 +2211,30 @@ async function saveAndSendImage(){
 let currentOrderId = null;
 let isDirty = true; // true = current form doesn't match a saved bill yet
 
-// ── Loaded-order lock/edit/discard state ──
-// A brand-new (unsaved) order is always fully editable — this only kicks
-// in once an existing saved order has been loaded (history list / ‹ ›
-// cycling), so a loaded bill can't be changed by accident: it opens
-// locked, "Edit" unlocks it and captures a snapshot, and "Discard"
-// (the same button, relabelled) restores that snapshot and re-locks.
-let isLoadedExisting = false;
-let isLocked = false;
+// ── View mode / Edit mode ──
+// Two states drive which pair of buttons occupies slots 3 & 4:
+//   view mode (uiMode='view'): looking at a saved record, read-only.
+//     Slots show New + Edit.
+//   edit mode (uiMode='edit'): actively creating or changing something
+//     (new order, or a loaded one after tapping Edit). Slots show
+//     Discard + Save. This is also the default state on a fresh page
+//     load / after "New" — you're always "composing" until you Save or
+//     Discard back to view mode.
+// editSnapshot is set only when edit mode was entered via "Edit" on an
+// existing record — that's what tells Discard whether to restore that
+// record's data or simply clear back to a blank form.
+let uiMode = 'edit';
+let isLocked = false; // true only while genuinely viewing a saved record read-only
 let editSnapshot = null;
+
+function setUiMode(mode){
+  uiMode = mode;
+  const viewing = mode === 'view';
+  $('btnReset').classList.toggle('hidden', !viewing);
+  $('btnEditLock').classList.toggle('hidden', !viewing);
+  $('btnDiscard').classList.toggle('hidden', viewing);
+  $('btnSave').classList.toggle('hidden', viewing);
+}
 
 function lockEntries(){
   isLocked = true;
@@ -2264,35 +2284,60 @@ function restoreEditSnapshot(snap){
   scheduleUpdate();
 }
 
-// The single Edit/Discard button toggles between the two states. Save
-// stays forced-disabled the moment editing starts, and only re-enables
-// itself once a real change is made — scheduleUpdate()'s existing
-// debounced renderOrderImage() is what actually flips it back on the
-// instant the (now-unlocked) data becomes dirty, exactly like it always
-// has for a brand-new order.
-function toggleEditLock(){
-  if(!isLoadedExisting) return;
-  const btn = $('btnEditLock');
-  if(isLocked){
-    editSnapshot = captureEditSnapshot();
-    unlockEntries();
-    $('btnSave').disabled = true;
-    $('btnSave').dataset.state = 'done';
-    setActionLabel('btnSave', '✅', 'Saved');
-    btn.classList.add('discard-mode');
-    setActionLabel('btnEditLock', '↩️', 'Discard');
-    setMsg('Editing enabled — change what you need, then Save (or Discard to undo).', false);
-  } else {
+// Shared field-clearing routine — used both by "New" (from view mode)
+// and by "Discard" of a brand-new, never-saved entry.
+function clearFormToBlank(){
+  currentOrderId = null;
+  $('custName').value = ''; $('custPhone').value = '';
+  $('phoneHint').textContent = 'Optional — required only to send on WhatsApp';
+  $('phoneHint').className = 'field-hint';
+  paymentRows = [{ receiverIdx: 0, amount: null }];
+  lastOrderAmountVal = 0;
+
+  randomizeAppreciation();
+  applyRandomTheme();
+
+  renderPaymentRows();
+  setDefaultDate();
+  orderNoManual = false;
+  $('orderNo').value = deriveOrderNo($('orderDate').value);
+  $('discountVal').value = 0; $('discountLabel').value = ''; $('discountLabel').placeholder = 'Discount';
+  $('discountOp').dataset.op = '-'; $('discountOp').textContent = '−';
+  buildRows();
+  scheduleUpdate();
+  setTimeout(() => { const first = document.querySelector('#itemsBody tr'); if(first) openItemModal(first); }, 150);
+}
+
+// ---- View mode → Edit mode ----
+function clickNew(){
+  // Only reachable from view mode, where there's nothing unsaved to lose.
+  editSnapshot = null;
+  clearFormToBlank();
+  unlockEntries();
+  setUiMode('edit');
+  setMsg('New order started.', false);
+}
+function clickEdit(){
+  editSnapshot = captureEditSnapshot();
+  unlockEntries();
+  $('btnSave').disabled = true; // nothing changed yet — re-enables the instant something is
+  setUiMode('edit');
+  setMsg('Editing — make your changes, then Save (or Discard to undo).', false);
+}
+
+// ---- Edit mode → View mode ----
+function clickDiscard(){
+  if(editSnapshot){
     restoreEditSnapshot(editSnapshot);
     editSnapshot = null;
     lockEntries();
-    btn.classList.remove('discard-mode');
-    setActionLabel('btnEditLock', '✏️', 'Edit');
-    isDirty = false;
-    $('btnSave').dataset.state = 'done';
-    setActionLabel('btnSave', '✅', 'Saved');
     setMsg('Changes discarded — back to the saved version.', false);
+  } else {
+    clearFormToBlank();
+    unlockEntries();
+    setMsg('Discarded — starting blank.', false);
   }
+  setUiMode('view');
 }
 const LS_ORDERS_KEY = 'sf_orders_cache_v1';
 const LS_CUSTOMERS_KEY = 'sf_customers_cache_v1';
@@ -2598,14 +2643,9 @@ function loadOrderFromCloud(id){
 
   scheduleUpdate();
   isDirty = false; // this content is exactly what's already saved for this order
-  $('btnSave').dataset.state = 'done';
-  setActionLabel('btnSave', '✅', 'Saved');
-  isLoadedExisting = true;
   editSnapshot = null;
-  const editBtn = $('btnEditLock');
-  editBtn.classList.remove('hidden', 'discard-mode');
-  setActionLabel('btnEditLock', '✏️', 'Edit');
   lockEntries();
+  setUiMode('view');
   setMsg('Loaded order ' + (o.orderNo || '') + ' — locked; tap Edit to change it.', false);
 }
 // ================== end cloud sync ==================
@@ -2634,49 +2674,21 @@ async function saveOrder(){
       setMsg('Bill saved, but the image could not be created: ' + e.message, true);
     }
 
-    setActionLabel('btnSave', '✅', 'Saved');
-    btn.dataset.state = 'done'; // stays "Saved" until the form is edited again
+    // Saved successfully: this is now "the current record" — return to
+    // view mode (locked, showing New/Edit) rather than staying in the
+    // Discard/Save pair with nothing left to change.
+    btn.dataset.state = 'done';
+    resetActionLabel('btnSave');
     btn.disabled = false;
+    editSnapshot = null;
+    lockEntries();
+    setUiMode('view');
     return;
   }catch(e){
     setMsg('Error: ' + e.message, true);
   }
   btn.disabled = false; btn.dataset.state = 'idle';
   resetActionLabel('btnSave');
-}
-
-function resetOrder(){
-  if(isLoadedExisting && !isLocked && isDirty){
-    if(!confirm('Discard unsaved changes to this order and start a new bill?')) return;
-  }
-  isLoadedExisting = false;
-  editSnapshot = null;
-  unlockEntries();
-  const editBtn = $('btnEditLock');
-  editBtn.classList.add('hidden');
-  editBtn.classList.remove('discard-mode');
-  setActionLabel('btnEditLock', '✏️', 'Edit');
-
-  $('custName').value = ''; $('custPhone').value = '';
-  $('phoneHint').textContent = 'Optional — required only to send on WhatsApp';
-  $('phoneHint').className = 'field-hint';
-  paymentRows = [{ receiverIdx: 0, amount: null }];
-  lastOrderAmountVal = 0;
-  currentOrderId = null;
-  
-  randomizeAppreciation();
-  applyRandomTheme();
-
-  renderPaymentRows();
-  setDefaultDate();
-  orderNoManual = false;
-  $('orderNo').value = deriveOrderNo($('orderDate').value);
-  $('discountVal').value = 0; $('discountLabel').value = ''; $('discountLabel').placeholder = 'Discount';
-  $('discountOp').dataset.op = '-'; $('discountOp').textContent = '−';
-  buildRows();
-  setMsg('New order started.', false);
-  scheduleUpdate();
-  setTimeout(() => { const first = document.querySelector('#itemsBody tr'); if(first) openItemModal(first); }, 150);
 }
 
 function toggleModal(id, show){ $(id).style.display = show ? 'flex' : 'none'; }
@@ -2709,6 +2721,8 @@ renderPaymentRows();
 buildRows();
 renderOrderImage();
 updateConnectivityUI();
+unlockEntries();
+setUiMode('edit'); // a fresh page load starts composing a new bill: Discard + Save
 setInterval(refreshOrderNo, 60000);
 
 setTimeout(() => { const first = document.querySelector('#itemsBody tr'); if(first) openItemModal(first); }, 250);
