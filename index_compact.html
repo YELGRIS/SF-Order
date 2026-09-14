@@ -1,0 +1,2874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SREE FOUNDATION — Ordering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Inter:wght@500;700;800;900&family=Noto+Sans+Tamil:wght@600&family=Roboto+Mono:wght@700&family=Great+Vibes&display=swap" rel="stylesheet" crossorigin="anonymous">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script type="module">
+  // ── Firebase (Firestore) — cloud sync for saved orders, customers, AND
+  // predefined config (item catalogue, payment methods, colour themes) ──
+  // No sign-in is used, so Firestore Security Rules must allow open
+  // read/write on the "orders", "customers" and "config" collections, e.g.:
+  //   match /orders/{id}    { allow read, write: if true; }
+  //   match /customers/{id} { allow read, write: if true; }
+  //   match /config/{id}    { allow read, write: if true; }
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import {
+    getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot,
+    query, orderBy, limit, enableIndexedDbPersistence
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAtH3LTuNFUiPS7Kd5NF3YEg40pyXEI49A",
+    authDomain: "sree-foundation-order-app.firebaseapp.com",
+    projectId: "sree-foundation-order-app",
+    storageBucket: "sree-foundation-order-app.firebasestorage.app",
+    messagingSenderId: "289204055794",
+    appId: "1:289204055794:web:6a85cb0e10d3a6c9aaaa6b"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  // Local cache so save/load/search keep working offline; queued writes
+  // flush automatically once the connection returns.
+  enableIndexedDbPersistence(db).catch(() => {});
+
+  window.FB = { db, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, orderBy, limit };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<style>
+  :root{
+    --primary:#0B5E64; --primary-light:#E7F6F6; --secondary:#128C94; --accent:#FF9F1C; --bg-main:#EEF7F7;
+    --shadow-color:rgba(11,94,100,0.35); --ink:#16262A; --danger:#c0392b; --white:#ffffff;
+    --row-1:#FFE5B4; --row-2:#B4E7FF; --row-3:#E5FFB4; --row-4:#FFB4E5; --row-5:#F5B4FF; --row-6:#FFE5CC;
+    --radius:10px;
+    --action-bar-h:34px; --log-collapsed-h:40px; --safe-b:env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;}
+  html{overflow-x:hidden;}
+  body{
+    margin:0; padding:0 0 calc(var(--action-bar-h) + var(--log-collapsed-h) + var(--safe-b) + 10px);
+    background:linear-gradient(180deg,var(--primary) 0%, var(--bg-main) 38%);
+    font-family:'Inter',sans-serif; color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    font-size:16px; max-width:100vw; overflow-x:hidden;
+  }
+
+  /* Fixed activity log — collapsed to ~2 lines by default so it stays out
+     of the way; tapping/focusing it expands it into a scrollable history
+     panel with blue text, and it shrinks back the moment focus leaves.
+     Sits at the true bottom edge, so it (not the action bar) is what
+     pads out into the Android gesture-bar/home-indicator safe area. */
+  .app-log{
+    position:fixed; left:0; right:0; bottom:0; z-index:999; box-sizing:border-box;
+    background:#16262A; color:#cfe0e0; font-family:'Roboto Mono',monospace; font-size:11px;
+    line-height:1.45; padding:4px 8px calc(4px + var(--safe-b)); height:calc(var(--log-collapsed-h) + var(--safe-b));
+    overflow:hidden; outline:none; cursor:pointer;
+    transition:height 0.18s ease; -webkit-overflow-scrolling:touch;
+  }
+  .app-log:focus{ height:42vh; overflow-y:auto; color:#4DA6FF; cursor:auto; }
+  .app-log .log-line{white-space:pre-wrap; word-break:break-word;}
+  .app-log .log-line.info{color:#cfe0e0;}
+  .app-log .log-line.success{color:#8CE2C0;}
+  .app-log .log-line.warning{color:#FFC868;}
+  .app-log .log-line.error{color:#FF8A80;}
+  .app-log .log-line.progress{color:#9AA6A6; font-style:italic;}
+  .app-log:focus .log-line.error{color:#FF5252;}
+  
+  .topbar{width:100%; display:flex; justify-content:space-between; align-items:center; gap:0; margin-bottom:0; position:relative;}
+  .tb-side{display:flex; flex-direction:column; align-items:flex-start; flex:0 0 auto;}
+  .tb-side.tb-right{align-items:flex-end;}
+  .tb-side input{border:none; border-radius:var(--radius); padding:3px; font-size:14px; font-weight:800; background:rgba(255,255,255,0.95); color:var(--ink); cursor:pointer;}
+  
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    background: transparent; bottom: 0; color: transparent; cursor: pointer; height: auto; left: 0; position: absolute; right: 0; top: 0; width: auto;
+  }
+
+  #orderDate{width:12ch;}
+  #orderNo{width:7ch; text-align:right;}
+  .ordnav{display:flex; align-items:center; gap:2px;}
+  .ordnav-btn{border:none; border-radius:var(--radius); background:rgba(255,255,255,0.95); color:var(--primary); font-weight:900; font-size:16px; line-height:1; padding:3px 4px; cursor:pointer;}
+  .ordnav-btn:active{transform:scale(0.9);}
+  .tb-company{flex:1; text-align:center; color:#fff; font-family:'Baloo 2',sans-serif; font-weight:800; font-size:20px; letter-spacing:0.2px; text-shadow:1px 1px 0 rgba(0,0,0,0.2); padding:0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #helpBtn{position:relative; top:unset; left:unset; transform:unset; background:var(--accent); color:#1a1200; border:none; border-radius:var(--radius); padding:3px 7px; font-weight:800; font-size:12px; cursor:pointer; z-index:10; white-space:nowrap; display:flex; align-items:center; gap:4px; margin:0 auto;}
+
+  .editor{width:100%; background:var(--white); border-radius:0; padding:0; box-shadow:none; border:none; display:flex; flex-wrap:wrap; position:relative;}
+  .editor > * {flex-basis: 100%;}
+  label{font-size:12px; text-transform:uppercase; letter-spacing:0.4px; color:var(--primary); font-weight:800; display:block; margin:2px 0 1px;}
+  .field-hint{font-size:11px; color:#5a6b6d; margin:0; line-height:1.2; font-weight:600;}
+  .field-hint.ok{color:#1a7d3a; font-weight:800;}
+  .field-hint.warn{color:var(--danger); font-weight:800;}
+  input[type=text], input[type=tel], input[type=date], input[type=number], select{
+    width:100%; border:2px solid var(--accent); border-radius:var(--radius); padding:3px 4px; font-size:16px; font-weight:700;
+    font-family:'Inter',sans-serif; background:linear-gradient(135deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95)); 
+    color:var(--ink); transition:all 0.2s ease; box-shadow:none;
+  }
+  input:focus, select:focus{outline:none; border-color:var(--primary); border-width:2px; background:linear-gradient(135deg, #fffdf5, #fffdf5);}
+  input::placeholder, select option{color:var(--secondary); font-weight:600; opacity:0.7;}
+  .row2{display:flex; gap:0; align-items:center;}
+  .row2 > input{flex:1; border-radius:var(--radius);}
+  .row2 > button.pick-btn {border-radius:var(--radius);}
+
+  .suggest-box{position:absolute; top:100%; left:0; right:34px; background:#fff; border:1.5px solid var(--secondary); border-radius:var(--radius); box-shadow:0 4px 10px rgba(0,0,0,0.18); z-index:30; max-height:190px; overflow-y:auto; margin-top:2px;}
+  .suggest-item{display:block; width:100%; text-align:left; background:#fff; border:none; border-bottom:1px solid #eee; padding:4px 5px; font-size:13px; font-weight:700; color:var(--ink); cursor:pointer;}
+  .suggest-item:last-child{border-bottom:none;}
+  .suggest-item:hover, .suggest-item:active{background:var(--primary-light);}
+
+  .order-hist-row{display:flex; align-items:stretch; gap:0; margin-bottom:1px;}
+  .order-hist-btn{flex:1; min-width:0; display:flex; align-items:center; gap:6px; text-align:left; font-family:'Roboto Mono',monospace; font-size:14px; font-weight:700; border:1.5px solid #d8e6e6; border-right:none; border-radius:5px 0 0 5px; padding:4px 4px; background:#F2F9F9; color:var(--ink); cursor:pointer;}
+  .order-hist-btn:active{transform:scale(0.99);}
+  .ohr-date{flex:0 0 6ch; white-space:nowrap; color:var(--primary); font-weight:900;}
+  .ohr-name{flex:0 0 14ch; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .ohr-item{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#5a6b6d; font-weight:600;}
+  .ohr-amt{flex:0 0 7ch; text-align:right; font-weight:900; color:var(--primary);}
+  .order-hist-del{flex:0 0 auto; border:1.5px solid var(--danger); border-radius:0 5px 5px 0; background:#FDECEA; color:var(--danger); font-weight:900; font-size:16px; padding:0 7px; cursor:pointer;}
+
+  table.items{width:100%; border-collapse:collapse; border-spacing:0; margin-top:0; font-size:14px; table-layout:fixed;}
+  table.items thead th{background:var(--primary); color:#fff; padding:3px 1px; font-size:13px; text-transform:uppercase; font-weight:800;}
+  table.items thead th:first-child{border-radius:0;}
+  table.items thead th:last-child{border-radius:0;}
+  table.items td{border:1px solid #d8e6e6; padding:1px 1px; text-align:center; vertical-align:middle;}
+  
+  table.items tbody tr:nth-child(6n+1) td{background:var(--row-1);}
+  table.items tbody tr:nth-child(6n+2) td{background:var(--row-2);}
+  table.items tbody tr:nth-child(6n+3) td{background:var(--row-3);}
+  table.items tbody tr:nth-child(6n+4) td{background:var(--row-4);}
+  table.items tbody tr:nth-child(6n+5) td{background:var(--row-5);}
+  table.items tbody tr:nth-child(6n+0) td{background:var(--row-6);}
+  
+  table.items th:nth-child(1), table.items td:nth-child(1){width:7%;}
+  table.items th:nth-child(2), table.items td:nth-child(2){width:34%;}
+  table.items th:nth-child(3), table.items td:nth-child(3){width:13%;}
+  table.items th:nth-child(4), table.items td:nth-child(4){width:12%;}
+  table.items th:nth-child(5), table.items td:nth-child(5){width:16%;}
+  table.items th:nth-child(6), table.items td:nth-child(6){width:18%;}
+  
+  input.desc{width:100%; min-width:0; box-sizing:border-box; font-size:14px; padding:2px 1px; text-align:center; font-weight:800; border:1px solid rgba(255,165,0,0.3); border-radius:var(--radius); background:rgba(255,255,255,0.9); transition:all 0.2s;}
+  input.qty, input.free-qty, input.rate{width:100%; min-width:0; box-sizing:border-box; font-size:14px; padding:2px 1px; text-align:right; font-weight:800; border:1px solid rgba(255,165,0,0.3); border-radius:var(--radius); background:rgba(255,255,255,0.9); transition:all 0.2s;}
+  input.desc{text-align:left; padding-left:4px; border-color:var(--accent);}
+  input.qty, input.rate{border-color:var(--secondary);}
+  input.free-qty{color:#1a7d3a; font-weight:900; border-radius:var(--radius); border-color:#52B788; background:rgba(229,255,180,0.4);}
+  input.free-qty::placeholder{color:#9fdcae; font-weight:700;}
+  input.desc:focus, input.qty:focus, input.rate:focus{outline:none; border-color:var(--primary); border-width:2px; background:#fffdf5; box-shadow:none;}
+  input.free-qty:focus{outline:none; border-color:#1a7d3a; border-width:2px; background:rgba(229,255,180,0.6); box-shadow:none;}
+  input.tap-field{cursor:pointer; font-weight:800; border-radius:var(--radius); border:1px solid var(--secondary);}
+  input.tap-field::placeholder{color:var(--secondary); font-weight:700;}
+  
+  td.sno{font-weight:900; color:var(--primary); font-size:13px;}
+  td.amount{font-family:'Roboto Mono',monospace; font-weight:900; font-size:14px;}
+
+  .pay-row{display:flex; gap:0; align-items:center; margin-bottom:0; width:100%;}
+  .pay-method{flex:1; text-align:left; padding:4px; border:1px solid #d8e6e6; border-radius:var(--radius); font-weight:800; cursor:pointer; font-size:13px; font-family:'Inter',sans-serif; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:all 0.2s; background:#fff;}
+  .pay-method.unselected{color:#9a9a9a; font-style:italic; opacity:0.7;}
+  .pay-amount{width:90px; flex:0 0 90px; border-radius:var(--radius) !important; font-family:'Roboto Mono',monospace; font-size:14px; font-weight:800; text-align:right; color:var(--primary); padding:3px;}
+
+  .pay-row-0 .pay-method{ background:linear-gradient(135deg, #CAF0F8, #E8F8F5); border-color:#90E0EF; color:#0077B6; }
+  .pay-row-1 .pay-method{ background:linear-gradient(135deg, #FFFBEA, #FFE5B4); border-color:#FFD700; color:#B8860B; }
+  .pay-row-2 .pay-method{ background:linear-gradient(135deg, #F3E5AB, #FFE5B4); border-color:#FF9F1C; color:#FF6B35; }
+  .pay-row-3 .pay-method{ background:linear-gradient(135deg, #E0BBE4, #F5B4FF); border-color:#C77DFF; color:#6A0572; }
+
+  .discount-row{display:flex; align-items:stretch; gap:0; margin-top:0;}
+  #discountLabel{flex:1; border:2px solid var(--accent); border-radius:var(--radius); padding:3px 4px; font-weight:800; background:linear-gradient(135deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95)); color:var(--ink); display:flex; align-items:center; font-size:14px;}
+  #discountOp{border:none; background:linear-gradient(135deg, var(--secondary), var(--primary)); color:#fff; width:36px; height:auto; border-radius:var(--radius); font-size:20px; font-weight:800; cursor:pointer; flex:0 0 36px; display:flex; align-items:center; justify-content:center;}
+  #discountVal{flex:0 0 70px; width: 70px; border-radius:var(--radius); font-family:'Roboto Mono',monospace; text-align:right; border:2px solid var(--accent); padding:3px; font-weight:800; font-size:14px; background:linear-gradient(135deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95)); color:var(--primary);}
+
+  .add-pay-btn{width:100%; padding:4px; background:linear-gradient(135deg, var(--primary-light), var(--bg-main)); border:1.5px dashed var(--primary); color:var(--primary); font-weight:800; font-size:13px; border-radius:var(--radius); cursor:pointer; margin-bottom:0;}
+  .pick-btn{background:linear-gradient(135deg, var(--accent), #FF8C42); color:#fff; border:none; border-radius:var(--radius); padding:3px 5px; font-weight:800; font-size:13px; cursor:pointer; white-space:nowrap; flex:0 0 auto;}
+
+  .totals{margin-top:0; font-size:14px;}
+  .trow{display:flex; justify-content:space-between; padding:1px 0; border-bottom:1px dashed #d8e6e6;}
+  .trow.grand{border-bottom:none; border-top:none; margin-top:0; padding:0; background:var(--primary-light); border-radius:var(--radius); border: 2px solid var(--primary); overflow:hidden;}
+  
+  .trow.grand { display: flex; align-items: stretch; justify-content: space-between; }
+  .trow.grand .amount-words-container { flex: 1; text-align: left; padding:3px 4px; font-size: 13px; font-weight: 900; color: var(--primary); display:flex; align-items:center; }
+  .trow.grand span:last-child{font-size:20px; font-weight:900; color:#fff; flex: 0 0 auto; text-align: right; background: var(--primary); padding: 1px 4px; border:none; border-left:2px solid var(--primary); display:flex; align-items:center; text-shadow:1px 2px 2px rgba(0,0,0,0.5); }
+
+  .words{background:var(--primary-light); border-radius:var(--radius); padding:2px 3px; font-size:12px; margin-top:0; line-height:1.2; display: none;}
+  .words b{display:block; font-size:11px; text-transform:uppercase; color:var(--primary); font-weight:900;}
+
+  .opt{font-size:12px; text-transform:none; letter-spacing:0; color:#5a6b6d; font-weight:700;}
+  .payment-qr-preview{display:flex; flex-wrap:wrap; gap:0; justify-content:center; margin-top:0;}
+  .payment-qr-preview .qr-block{text-align:center; background:var(--primary-light); border-radius:var(--radius); padding:3px;}
+
+  .image-wrap{
+    width:100%; margin-top:0; border-radius:22px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.10), 0 6px 14px rgba(0,0,0,0.10), 0 16px 32px rgba(0,0,0,0.08);
+    overflow:hidden; background:#ffffff; padding:2px; box-sizing:border-box;
+  }
+  #orderImage{
+    width:100%; background:#fff; font-family:'Inter',sans-serif; color:var(--ink); 
+    border:none; outline:none; margin:0; padding:0; overflow:hidden; box-sizing:border-box;
+    border-radius:20px;
+  }
+
+  .order-header{display:flex; align-items:center; justify-content:space-between; background:linear-gradient(120deg,var(--primary),var(--secondary)); color:#fff; padding:10px; width:100%; box-sizing:border-box;}
+  .oh-date, .oh-no{flex:0 0 auto; white-space:nowrap; font-size:12px; font-weight:700; opacity:0.95; text-align:center; line-height:1.25;}
+  .oh-no{text-align:left;}
+  .oh-date{text-align:right;}
+  .oh-lbl{font-size:9px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; opacity:0.85;}
+  .oh-val{font-size:13px; font-weight:900; font-family:'Roboto Mono',monospace; letter-spacing:0.3px;}
+  .oh-company{flex:1 1 auto; text-align:center; width:100%; min-width:0; padding:0;}
+  .oh-name{font-family:'Baloo 2',sans-serif; font-size:24px; font-weight:800; letter-spacing:0.3px; line-height:1.1; text-shadow:1px 1px 0 rgba(0,0,0,0.22); word-wrap:break-word; overflow-wrap:break-word;}
+  .oh-addr{font-size:12px; opacity:0.95; font-weight:600;}
+
+  .order-to{display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:13px; box-sizing:border-box; background: var(--primary-light); margin: 0; border-radius: 0;}
+  .order-to .lbl{font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--primary); font-weight:800; display:inline-block; margin-right: 4px;}
+  .order-to strong{font-size:13px;}
+  .order-to .ph{color:#5a6b6d; font-size:13px; font-weight:700;}
+
+  table.it{width:100%; border-collapse:collapse; margin:0; font-size:13px; box-sizing:border-box;}
+  table.it thead th{background:var(--primary); color:#fff; padding:6px 2px; font-size:13px; text-transform:uppercase; font-weight:800;}
+  table.it td{border:1px solid #d8e6e6; padding:4px 2px; text-align:center; font-weight:700;}
+  table.it td.d{text-align:left;}
+  table.it td.empty{color:#94a4a5; font-style:italic;}
+  .img-item-name{font-weight:800;}
+  .img-free-lbl{font-size:12px; color:#1a7d3a; font-weight:900;}
+
+  .ift{margin:0; font-size:14px; box-sizing:border-box;}
+  .ift .row{display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dashed #d8e6e6; font-weight:700;}
+  /* Subtotal row (table footer) gets rounded end-caps */
+  .subtotal-row td:first-child{border-radius:var(--radius) 0 0 var(--radius);}
+  .subtotal-row td:last-child{border-radius:0 var(--radius) var(--radius) 0;}
+  /* Grand total row: the amount chip stretches to the row's full height and
+     shares its border, so the chip's top/bottom edges coincide exactly with
+     the row's own edges (matching the rounded subtotal row above it) —
+     no floating gap, no doubled border. */
+  .ift .row.grand{
+    border-bottom:none; border-top:none; margin-top:0; padding:0; font-weight:900;
+    display:flex; align-items:stretch; justify-content:space-between;
+    background:var(--primary-light); border:2px solid var(--primary); border-radius:var(--radius);
+    overflow:hidden; box-sizing:border-box;
+  }
+  .ift .row.grand .amount-words-container{ flex:1; text-align:left; padding:8px 8px; font-size:13px; font-weight:900; color:var(--primary); display:flex; align-items:center; }
+  .ift .row.grand span:last-child{
+    color:#fff;
+    font-size:22px;
+    font-weight:900;
+    flex:0 0 auto;
+    min-width:7ch;
+    text-align:right;
+    font-family:'Roboto Mono', monospace;
+    background:var(--primary);
+    padding:0 12px;
+    border-radius:0;
+    text-shadow:1px 2px 2px rgba(0,0,0,0.5), -1px -1px 0 rgba(255,255,255,0.15);
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    border:none;
+    border-left:2px solid var(--primary);
+    letter-spacing:0.5px;
+    align-self:stretch;
+  }
+  .qty-total{font-size:13px; font-weight:700; color:#5a6b6d;}
+  .ift .words{background:var(--primary-light); border-radius:var(--radius); padding:6px 8px; font-size:12px; margin:0; line-height:1.3; display: none;}
+
+  /* Payment methods block (final bill) — rounded container, one coloured
+     row per payment method: row number + name + 2-space gap + UPI id.
+     No URL is ever displayed — the UPI deep-link is only used internally
+     for the QR code and the WhatsApp payment message. */
+  .pay-breakdown{background:transparent; border-radius:var(--radius); padding:0; margin-top:0; line-height:1.3; box-sizing:border-box;}
+  .pay-breakdown b{display:block; font-size:11px; text-transform:uppercase; color:var(--primary); margin-bottom:4px; font-weight:900; letter-spacing:0.4px;}
+  .pb-row{display:flex; align-items:center; gap:6px; padding:5px 8px; font-weight:800; border-radius:var(--radius); margin-bottom:4px; box-sizing:border-box;}
+  .pb-row:last-child{margin-bottom:0;}
+  .pb-num{flex:0 0 auto; width:16px; height:16px; border-radius:50%; background:rgba(255,255,255,0.65); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:900;}
+  .pb-info{flex:1; min-width:0; text-align:left;}
+  .pb-line1{font-size:12px; font-weight:900; line-height:1.3; overflow-wrap:break-word; word-break:break-word;}
+  .pb-amt{flex:0 0 auto; font-family:'Roboto Mono',monospace; font-weight:900; font-size:13px; white-space:nowrap;}
+  .pmb-0{ background:linear-gradient(135deg, #CAF0F8, #E8F8F5); color:#0077B6; }
+  .pmb-1{ background:linear-gradient(135deg, #FFFBEA, #FFE5B4); color:#B8860B; }
+  .pmb-2{ background:linear-gradient(135deg, #F3E5AB, #FFE5B4); color:#FF6B35; }
+  .pmb-3{ background:linear-gradient(135deg, #E0BBE4, #F5B4FF); color:#6A0572; }
+
+  .ty {
+    text-align: center; padding: 6px 0; margin-top: 0; display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; box-sizing: border-box;
+  }
+  .ty .fancy-text {
+    font-family: 'Great Vibes', cursive; color: var(--primary); font-weight: normal; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; word-break: break-word; text-align: center;
+  }
+  .ty .ty-emojis { font-size: 14px; white-space: nowrap; flex-shrink: 0; }
+
+  /* ===== QR PARTITION GRID =====
+     Layout is derived entirely from QR count. Partitions are created first
+     (via grid-template-areas), then QR codes are generated into their
+     already-sized partition. gap:0 everywhere — no gutters between partitions.
+     Row height is driven by the square QR wrapper (aspect-ratio:1/1), so the
+     grid always stays fully occupied with no dead space. */
+  .grid-container{
+    display:grid; gap:0; padding:0;
+    background:transparent; width:100%; max-width:100%; box-sizing:border-box;
+    margin:0;
+  }
+  /* 1 QR code: side by side — left = instructions, right = the QR */
+  .grid-container.qr-count-1{
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    grid-template-rows: auto;
+    grid-template-areas: "instr qr1";
+  }
+  /* 2 QR codes: left = instructions (spans full height), right column
+     splits into 2 equal stacked QR partitions */
+  .grid-container.qr-count-2{
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    grid-template-rows: auto auto;
+    grid-template-areas: "instr qr1" "instr qr2";
+  }
+  /* 3 QR codes: 2x2 grid — instructions occupy only the first cell */
+  .grid-container.qr-count-3{
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    grid-template-rows: auto auto;
+    grid-template-areas: "instr qr1" "qr2 qr3";
+  }
+  /* extensibility fallback for >3 (not part of the 0/1/2/3 spec, but keeps
+     things from breaking if a 4th UPI receiver is ever added) */
+  .grid-container.qr-count-4plus{
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    grid-template-rows: auto auto auto;
+    grid-template-areas: "instr instr" "qr1 qr2" "qr3 qr4";
+  }
+  .grid-cell{
+    background:#ffffff; border:1px solid var(--primary);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:3px; text-align:center; box-sizing:border-box;
+    min-width:0; min-height:0; position:relative; overflow:hidden;
+  }
+  .grid-cell.instruction{ border-style:dashed; }
+  .scan-note-grid{
+    justify-content:center; text-align:center; display:flex; flex-direction:column; gap:2px;
+    padding:0; background:transparent;
+    width:100%; box-sizing:border-box; margin:0;
+    align-items:center;
+  }
+  .scan-note-grid p{
+    margin:0; line-height:1.2; overflow-wrap:break-word; word-break:break-word;
+    padding:0; border-radius:0; width:100%; box-sizing:border-box;
+    font-size:clamp(10px, 2vw, 13px); font-weight:950; background:none; text-shadow:none;
+  }
+  .scan-note-grid p.en{font-family:'Baloo 2',sans-serif; font-weight:950; color:var(--primary); letter-spacing:0.4px;}
+  .scan-note-grid p.ta{font-family:'Noto Sans Tamil',sans-serif; font-weight:900; color:var(--primary);}
+
+  /* QR cell: the square wrap drives the row height (width == height), so the
+     QR is always the maximum size that fits its partition. The meta label
+     is an absolutely-positioned overlay and consumes no grid track space. */
+  /* QR cell: flex column — the square wrap fills the full partition width
+     (and drives its own height via aspect-ratio), so the QR pattern is
+     never obstructed by anything on top of it. The caption is a separate,
+     compact single line directly beneath the QR, not an overlay. */
+  .qr-grid-cell{ padding:0; border:none; justify-content:flex-start; }
+  .qr-square-wrap{
+    width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
+    box-sizing:border-box; min-width:0; flex:0 0 auto;
+  }
+  .qr-slot-container{
+    width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+    background:#ffffff; box-sizing:border-box; position:relative;
+  }
+  .qr-slot-container > div{width:100%; height:100%; display:flex; align-items:center; justify-content:center; max-width:100%;}
+  .qr-caption{
+    width:100%; flex:0 0 auto; font-weight:800; text-align:center;
+    padding:2px 3px; box-sizing:border-box; background:#ffffff;
+    font-size:9px; line-height:1.2; color:var(--primary); font-family:'Roboto Mono',monospace;
+    letter-spacing:0.2px; word-break:break-all; overflow-wrap:break-word;
+  }
+
+  .buttons-watermark{width:100%; text-align:center; font-size:22px; opacity:0.55; margin-top:0; color:#fff;}
+  /* Fixed at the bottom (not in normal flow) so it's always reachable
+     without scrolling, sitting just above the log panel — never
+     overlapping it — with its own translucent scrim so content
+     scrolling underneath doesn't clash with the semi-transparent buttons. */
+  .action-buttons{
+    position:fixed; left:0; right:0; bottom:calc(var(--log-collapsed-h) + var(--safe-b)); z-index:60;
+    display:flex; gap:6px; margin:0; padding:4px 8px; box-sizing:border-box;
+    background:linear-gradient(180deg, rgba(238,247,247,0) 0%, var(--bg-main) 60%);
+  }
+  /* Half the previous height: icon and label now occupy the same spot
+     (label overlaid on top of the icon) instead of stacking in two rows. */
+  .action-buttons button{
+    position:relative; flex:1; min-width:0; height:26px; overflow:hidden;
+    border:1px solid rgba(255,255,255,0.35); border-radius:calc(var(--radius) + 2px);
+    padding:0 2px; font-size:11px; font-weight:900; font-family:'Inter',sans-serif; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s ease;
+  }
+  .action-buttons button:active{transform:translateY(1px) scale(0.98);}
+  /* Icon sits full-bleed behind the button, faded; the label sits on top
+     of it, same centre point — one compact row instead of icon-then-text. */
+  .action-buttons button .ic{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:20px; opacity:0.32; pointer-events:none;}
+  .action-buttons button .lbl{position:relative; z-index:1; letter-spacing:0.2px;}
+  /* Contrast fonts: light label + dark shadow on the darker/saturated
+     fills, dark label + light halo on the pale orange Save button —
+     legible against both the button fill and the faded icon beneath it. */
+  .action-buttons button{color:#fff; text-shadow:0 1px 2px rgba(0,0,0,0.55), 0 0 5px rgba(0,0,0,0.35);}
+  /* Fixed left-hand pair (always visible): WhatsApp Pay, then Save+open-
+     WhatsApp-chat. Right-hand pair swaps as a unit with the view/edit
+     mode — .slot3/.slot4 pin position via flex order regardless of
+     which of the two buttons sharing that slot is the visible one. */
+  .action-buttons .slot3{order:3;}
+  .action-buttons .slot4{order:4;}
+  #btnPay{background:rgba(13,181,131,0.82); box-shadow:0 4px 14px rgba(6,150,104,0.42);}
+  #btnImage{background:rgba(11,110,118,0.82); box-shadow:0 4px 14px rgba(11,110,118,0.42);}
+  #btnReset{background:rgba(90,95,115,0.80); box-shadow:0 4px 12px rgba(35,38,50,0.4);}
+  #btnDiscard{background:rgba(217,68,68,0.82); box-shadow:0 4px 14px rgba(185,35,35,0.42);}
+  #btnEditLock{background:rgba(155,60,205,0.82); box-shadow:0 4px 14px rgba(130,35,175,0.42);}
+  #btnSave{background:rgba(255,159,28,0.85); box-shadow:0 4px 14px rgba(230,140,0,0.4); color:#1a1200; text-shadow:0 1px 1px rgba(255,255,255,0.65);}
+  .action-buttons button:disabled{opacity:0.42; cursor:not-allowed; box-shadow:none; transform:none;}
+  .action-buttons button.hidden{display:none;}
+  .action-buttons button.net-disabled{filter:grayscale(0.55);}
+  #formMsg{width:100%; font-size:13px; text-align:center; min-height:16px; color:var(--primary); margin-top:0; font-weight:700;}
+
+  /* Read-only overlay shown over the whole entry area while a loaded
+     saved order hasn't had "Edit" tapped yet — blocks interaction with
+     every field underneath without hiding or restyling any of them. */
+  .editor-lock-overlay{
+    position:absolute; inset:0; z-index:50; cursor:not-allowed;
+    background:repeating-linear-gradient(135deg, rgba(0,0,0,0.03) 0 10px, rgba(0,0,0,0.055) 10px 20px);
+  }
+  .lock-badge{
+    position:sticky; top:8px; margin:8px auto 0; width:fit-content; display:block;
+    background:rgba(30,30,40,0.85); color:#fff; font-weight:800; font-size:12px;
+    padding:6px 14px; border-radius:999px; box-shadow:0 4px 12px rgba(0,0,0,0.35);
+  }
+
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:0;}
+  .modal-box{background:#fff; border-radius:var(--radius); padding:0; max-height:85vh; overflow-y:auto; width:100%; font-weight:700; box-shadow:none; display:flex; flex-direction:column;}
+  .modal-box h3{font-family:'Baloo 2',sans-serif; color:var(--primary); margin:0; padding:4px 4px 2px; font-size:18px;}
+  .modal-box > .field-hint{padding:0 4px; margin-bottom:2px;}
+  .modal-box ol{padding:3px 4px 3px 16px; font-size:14px; line-height:1.35; margin:0;}
+  .modal-box button.close-btn{margin:3px 3px; background:var(--primary); color:#fff; border:none; border-radius:var(--radius); padding:4px 7px; font-weight:800; font-size:14px; cursor:pointer;}
+  
+  .qty-grid{display:grid; grid-template-columns:repeat(5, 1fr); gap:1px; margin:0 1px;}
+  .qty-grid button{border:1.5px solid var(--primary); border-radius:5px; padding:5px 1px; font-weight:900; font-size:19px; cursor:pointer; transition:transform 0.1s;}
+  .qty-grid button:active{transform:scale(0.95);}
+  
+  .qty-grid button:nth-child(5n+1){ background:#E8F8F5; color:#117A65; border-color:#A3E4D7; }
+  .qty-grid button:nth-child(5n+2){ background:#FEF9E7; color:#B7950B; border-color:#F9E79F; }
+  .qty-grid button:nth-child(5n+3){ background:#EBF5FB; color:#2874A6; border-color:#AED6F1; }
+  .qty-grid button:nth-child(5n+4){ background:#FADBD8; color:#78281F; border-color:#F5B7B1; }
+  .qty-grid button:nth-child(5n+0){ background:#F4ECF7; color:#512E5F; border-color:#D7BDE2; }
+
+  .item-list{display:flex; flex-direction:column; gap:1px; margin:0 1px; max-height:52vh; overflow-y:auto;}
+  .item-list button{text-align:left; border:1.5px solid #d8e6e6; border-radius:5px; padding:4px 4px; font-weight:800; font-size:17px; cursor:pointer; transition:transform 0.1s;}
+  .item-list button:active{transform:scale(0.98);}
+
+  .item-list button:nth-child(5n+1){ background:#F2F9F9; border-color:#BCE3E5; color:#0B5E64; }
+  .item-list button:nth-child(5n+2){ background:#FFF9F2; border-color:#FFE3C2; color:#A65300; }
+  .item-list button:nth-child(5n+3){ background:#F7F4FC; border-color:#E2D5F8; color:#5B2C90; }
+  .item-list button:nth-child(5n+4){ background:#F2FAF4; border-color:#C3ECCB; color:#1D6A32; }
+  .item-list button:nth-child(5n+0){ background:#FCF2F5; border-color:#F7C8D5; color:#901A3E; }
+
+  .item-list button.others-btn{border-style:dashed; font-style:italic; background:#fff !important; color:var(--ink) !important; border-color:var(--primary) !important;}
+  .item-list button.add-new-btn{border-style:solid; font-weight:900; background:var(--primary-light) !important; color:var(--primary) !important; border-color:var(--primary) !important;}
+  .new-item-form{display:flex; flex-direction:column; gap:3px; margin:1px 4px 4px;}
+  .new-item-form label{margin:2px 0 1px;}
+  .desc-wrap{position:relative; display:block;}
+  .desc-wrap input.desc{padding-right:20px;}
+  .desc-pick-btn{position:absolute; right:0; top:0; bottom:0; width:20px; border:none; background:transparent; color:var(--primary); font-size:13px; font-weight:900; cursor:pointer; padding:0; line-height:1; display:flex; align-items:center; justify-content:center;}
+  .desc-pick-btn:active{transform:scale(0.85);}
+  .manage-list{display:flex; flex-direction:column; gap:2px; margin:2px 4px 3px; max-height:48vh; overflow-y:auto;}
+  .manage-row{display:flex; align-items:center; gap:6px; border:1.5px solid #d8e6e6; border-radius:var(--radius); padding:3px 4px; background:#F7FBFB;}
+  .manage-row.is-disabled{opacity:0.5;}
+  .manage-row-info{flex:1; min-width:0;}
+  .manage-row-name{font-weight:900; font-size:14px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .manage-row-sub{font-size:12px; font-weight:600; color:#5a6b6d; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .manage-row-actions{display:flex; gap:4px; flex:0 0 auto;}
+  .manage-row-actions button{border:none; border-radius:var(--radius); padding:3px 4px; font-size:14px; cursor:pointer; font-weight:800;}
+  .manage-edit-btn{background:var(--primary-light); color:var(--primary);}
+  .manage-del-btn{background:#FDECEA; color:var(--danger);}
+  .manage-toggle-btn{background:#FFF3E0; color:#A65300; font-size:12px !important;}
+  .modal-actions{display:flex; flex-wrap:wrap; gap:3px; margin:3px 3px 3px;}
+  .modal-actions button.close-btn{flex:1 1 100px; margin:0; min-width:0; font-size:12.5px; padding:4px 3px; white-space:normal; line-height:1.15; text-align:center;}
+  .modal-actions button.close-btn.finish-btn{flex:1 1 140px; margin-top:0; font-size:13px;}
+  .custom-item-box{display:flex; gap:0; margin:1px 2px 2px; flex:0 0 auto;}
+  .custom-item-box input{flex:1;}
+  button.finish-btn{background:var(--accent); color:#1a1200; margin-top:4px; font-size:15px;}
+  #qtyCustomInput{width:100%; margin-bottom:4px;}
+  .qty-grid button.others-btn{border-style:dashed; font-style:italic; font-size:12px; padding:2px 1px; background:#fff !important; color:var(--ink) !important; border-color:var(--primary) !important;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-side">
+    <input type="date" id="orderDate" tabindex="1" onchange="refreshOrderNo(); scheduleUpdate();" onkeydown="handleEnterFocus(event, 'orderNo')" onclick="this.showPicker?.(); this.click();">
+  </div>
+  <button id="helpBtn" onclick="toggleModal('helpModal', true)"><span>❓</span><span>Help</span></button>
+  <div class="tb-side tb-right">
+    <div class="ordnav">
+      <button type="button" class="ordnav-btn" tabindex="-1" title="Older bill" onclick="cycleOrder(1)">‹</button>
+      <input type="text" id="orderNo" tabindex="2" maxlength="6" inputmode="none" onblur="padOrderNo()" oninput="orderNoManual = true; scheduleUpdate();" onfocus="this.select()" onclick="openOrderHistoryModal()" onkeydown="handleEnterFocus(event, 'custName')">
+      <button type="button" class="ordnav-btn" tabindex="-1" title="Newer bill" onclick="cycleOrder(-1)">›</button>
+    </div>
+  </div>
+</div>
+
+<div class="editor">
+  <div class="editor-lock-overlay" id="editorLockOverlay" style="display:none;"><div class="lock-badge">🔒 Locked — tap Edit to change</div></div>
+  <div class="row2" style="margin-bottom:0; position:relative;">
+    <input type="text" id="custName" tabindex="3" maxlength="20" placeholder="Customer name (max 20)" oninput="scheduleUpdate(); showCustomerSuggestions('name');" onfocus="this.select()" onblur="hideCustomerSuggestionsDelayed()" onkeydown="handleEnterFocus(event, 'custPhone')">
+    <input type="tel" id="custPhone" tabindex="4" maxlength="13" placeholder="Mobile (13 digits)" style="flex:0 0 130px; border-radius:var(--radius);" oninput="onPhoneInput(); showCustomerSuggestions('phone');" onfocus="this.select()" onblur="hideCustomerSuggestionsDelayed()" onkeydown="handleEnterFocus(event, 'desc_row_1')">
+    <button type="button" class="pick-btn" tabindex="-1" title="Contacts" onclick="pickContact()">📇</button>
+    <div id="custSuggestBox" class="suggest-box" style="display:none;"></div>
+  </div>
+  <div class="field-hint" id="phoneHint" style="margin-bottom:0;">Optional — required only to send on WhatsApp</div>
+
+  <table class="items">
+    <thead><tr><th>#</th><th>Item</th><th colspan="3">Qty</th><th>Amt</th></tr></thead>
+    <tbody id="itemsBody"></tbody>
+    <tfoot>
+      <tr style="background:var(--primary-light); font-weight:900; font-size:14px;">
+        <td id="footerItemCount" style="text-align:center; padding:3px 1px;">0</td>
+        <td style="text-align:left; padding:3px 2px;">Counts and Sub Total</td>
+        <td id="footerQtyFree" colspan="3" style="text-align:center;">0</td>
+        <td id="footerAmt" style="text-align:right; font-family:'Roboto Mono',monospace; padding-right:4px; font-size:18px;">0</td>
+      </tr>
+    </tfoot>
+  </table>
+  <div class="field-hint">Rate & Free quantities are auto-filled and skipped by default — tap manually to alter them.</div>
+
+  <div class="discount-row" style="margin-top:0;">
+    <input type="text" id="discountLabel" tabindex="31" maxlength="25" placeholder="Discount" onfocus="this.select()" onkeydown="handleEnterFocus(event, 'discountVal')">
+    <button type="button" id="discountOp" tabindex="-1" data-op="-" onclick="toggleDiscountOp()">−</button>
+    <input type="number" id="discountVal" tabindex="32" value="0" min="0" max="9999999" oninput="limit7Digits(this); scheduleUpdate();" onfocus="this.select()" onkeydown="handleEnterFocus(event, 'payAmountInput_0')">
+  </div>
+  <div class="field-hint">Amount to add or subtract from the subtotal</div>
+
+  <div class="totals">
+    <div class="trow grand">
+      <span class="amount-words-container" id="edAmountWords">Order Value: Rupees Zero Only</span>
+      <span id="edOrderAmount">₹0</span>
+    </div>
+  </div>
+  <div class="words" id="edPaymentBreakdown" style="display:none;"><b>Payment methods</b><div id="edPaymentBreakdownRows"></div></div>
+
+  <label style="margin-top:0">Payment Allocation</label>
+  <div id="paymentRowsContainer"></div>
+  <button type="button" class="add-pay-btn" onclick="addPaymentRow()">+ Add Payment Method</button>
+  <div class="field-hint" id="paymentStatus">Add items to determine the order amount.</div>
+  <div id="paymentQrPreview" class="payment-qr-preview"></div>
+</div>
+
+<div class="image-wrap" id="imageWrap" style="display:none;"><div id="orderImage"></div></div>
+
+<div class="buttons-watermark">💧</div>
+<div class="action-buttons">
+  <button id="btnPay" tabindex="500" onclick="sendPayment()"><span class="ic">💸</span><span class="lbl">WA Pay</span></button>
+  <button id="btnImage" tabindex="501" onclick="saveAndSendImage()"><span class="ic">🖼️</span><span class="lbl">WA Chat</span></button>
+  <button id="btnReset" class="slot3" tabindex="502" onclick="clickNew()"><span class="ic">🆕</span><span class="lbl">New</span></button>
+  <button id="btnDiscard" class="slot3 hidden" tabindex="502" onclick="clickDiscard()"><span class="ic">↩️</span><span class="lbl">Discard</span></button>
+  <button id="btnEditLock" class="slot4" tabindex="503" onclick="clickEdit()"><span class="ic">✏️</span><span class="lbl">Edit</span></button>
+  <button id="btnSave" class="slot4 hidden" tabindex="503" onclick="saveOrder()"><span class="ic">💾</span><span class="lbl">Save</span></button>
+</div>
+<div id="formMsg"></div>
+<div id="appLog" class="app-log" tabindex="0" title="Tap to expand activity log" onfocus="expandLog()"></div>
+
+<!-- Modals -->
+<div id="qtyModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="qtyModalTitle">Select Quantity</h3>
+    <div class="field-hint">Tap a quantity, or use "Custom" for any other amount. Entering 0 clears this line.</div>
+    <div id="qtyGrid" class="qty-grid"></div>
+    <div id="qtyCustomBox" class="custom-item-box" style="display:none;">
+      <input type="number" id="qtyCustomInput" maxlength="7" placeholder="Enter quantity" onfocus="this.select()" oninput="limit7Digits(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();applyManualQty();}">
+      <button type="button" class="close-btn" onclick="applyManualQty()">Set</button>
+    </div>
+    <div class="modal-actions">
+      <button class="close-btn" onclick="toggleModal('qtyModal', false)">Close</button>
+      <button class="close-btn finish-btn" onclick="finishEntry()">✅ Finish Items — Go to Details</button>
+    </div>
+  </div>
+</div>
+
+<div id="itemModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="itemModalTitle">Select Item</h3>
+    <div id="itemList" class="item-list"></div>
+    <div id="customItemBox" class="custom-item-box" style="display:none;">
+      <input type="text" id="customItemInput" maxlength="25" placeholder="Type item description" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();applyCustomItem();}">
+      <button type="button" class="close-btn" onclick="applyCustomItem()">Use</button>
+    </div>
+    <div class="field-hint">Short item name, up to 25 characters. Rate is entered next.</div>
+    <div class="modal-actions">
+      <button type="button" class="close-btn" onclick="openManageItemsModal()">🛠 Manage Items</button>
+      <button class="close-btn" onclick="toggleModal('itemModal', false)">Close</button>
+      <button class="close-btn finish-btn" onclick="finishEntry()">✅ Finish Items — Go to Details</button>
+    </div>
+  </div>
+</div>
+
+<div id="newItemModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="newItemModalTitle">Add New Item</h3>
+    <div class="field-hint" id="newItemModalHint">Saved permanently — it'll appear in the item list for future orders too.</div>
+    <div class="new-item-form">
+      <div>
+        <label>Item Name</label>
+        <input type="text" id="newItemName" maxlength="25" placeholder="e.g. BT can 750g" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault(); $('newItemRate').focus();}">
+      </div>
+      <div>
+        <label>Rate (₹)</label>
+        <input type="number" id="newItemRate" min="0" placeholder="0" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault(); $('newItemMoq').focus();}">
+      </div>
+      <div>
+        <label>MOQ (Min. Order Qty)</label>
+        <input type="number" id="newItemMoq" min="1" placeholder="1" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault(); $('newItemFree').focus();}">
+      </div>
+      <div>
+        <label>Free Qty per MOQ (optional)</label>
+        <input type="number" id="newItemFree" min="0" placeholder="0" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveNewItem();}">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="close-btn" id="newItemSaveBtn" onclick="saveNewItem()">✅ Save &amp; Use This Item</button>
+      <button type="button" class="close-btn" onclick="cancelNewItemModal()">‹ Back</button>
+    </div>
+  </div>
+</div>
+
+<div id="manageItemsModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3>Manage Items</h3>
+    <div class="field-hint">Edit rate/MOQ/free qty, remove items you no longer sell, or add new ones. Changes are saved permanently.</div>
+    <div id="manageItemsList" class="manage-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="close-btn add-new-btn" onclick="openNewItemModal('manage')">➕ Add New Item</button>
+      <button type="button" class="close-btn" onclick="toggleModal('manageItemsModal', false)">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="paymentMethodModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="paymentMethodModalTitle">Select Payment Method</h3>
+    <div id="paymentMethodList" class="item-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="close-btn add-new-btn" onclick="openNewPaymentModal('order')">➕ Add New Payment Method</button>
+      <button type="button" class="close-btn" onclick="openManagePaymentModal()">🛠 Manage Payment Methods</button>
+      <button class="close-btn" onclick="closePaymentMethodModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="newPaymentModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="newPaymentModalTitle">Add New Payment Method</h3>
+    <div class="field-hint">Saved permanently — it'll appear in the payment method list for future orders too.</div>
+    <div class="new-item-form">
+      <div>
+        <label>Name</label>
+        <input type="text" id="newPaymentName" maxlength="30" placeholder="e.g. Ramesh" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault(); $('newPaymentUpi').focus();}">
+      </div>
+      <div>
+        <label>UPI ID (leave blank for cash)</label>
+        <input type="text" id="newPaymentUpi" maxlength="60" placeholder="e.g. name@bank" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault(); saveNewPayment();}">
+      </div>
+      <div class="field-hint">Payment amount, currency (INR) and reference note are filled in automatically on every bill — only Name and UPI ID are needed here.</div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="close-btn" id="newPaymentSaveBtn" onclick="saveNewPayment()">✅ Save &amp; Use This Method</button>
+      <button type="button" class="close-btn" onclick="cancelNewPaymentModal()">‹ Back</button>
+    </div>
+  </div>
+</div>
+
+<div id="managePaymentModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3>Manage Payment Methods</h3>
+    <div class="field-hint">Edit a name/UPI ID, or add new methods. "Hide" keeps a method out of future orders without disturbing old saved bills that used it — it's not a true delete.</div>
+    <div id="managePaymentList" class="manage-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="close-btn add-new-btn" onclick="openNewPaymentModal('manage')">➕ Add New Payment Method</button>
+      <button type="button" class="close-btn" onclick="toggleModal('managePaymentModal', false)">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="orderHistoryModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3>Previous Orders</h3>
+    <div class="field-hint">Tap an order to load it. Enter a number below to start a new order.</div>
+    <div class="custom-item-box" style="margin:4px 10px 8px;">
+      <input type="text" id="orderHistorySearch" placeholder="Search name, phone or order no." oninput="renderOrderHistoryList(filterOrderHistory(this.value))">
+    </div>
+    <div id="orderHistoryList" class="item-list"></div>
+    <button class="close-btn" onclick="toggleModal('orderHistoryModal', false)">Close</button>
+  </div>
+</div>
+
+<div id="helpModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3>How to use this app</h3>
+    <ol>
+      <li><b>Programme Logic & Flow:</b> The application operates sequentially from top to bottom, moving from order configuration and item selection to payment allocation, automated QR generation, and final action execution (WhatsApp or download).</li>
+      <li><b>Expected Input:</b> 
+        <ul>
+          <li>Order Date and Order Number at the top bar.</li>
+          <li>Customer name (up to 20 characters) and a 13-digit mobile number layout.</li>
+          <li>Item descriptions, quantities, free quantities, and rates selected via interactive modals or custom entry.</li>
+          <li>Optional discount labeling and amount.</li>
+          <li>Split payment method allocation matching the exact order total.</li>
+        </ul>
+      </li>
+      <li><b>Resulting Output:</b> 
+        <ul>
+          <li>A real-time visual receipt summary with localized words formatting, dynamic customer appreciation quotes, and auto-generated UPI QR code grids for non-cash transfers.</li>
+          <li>Fully formatted WhatsApp messages or downloadable, high-resolution PNG order summaries.</li>
+        </ul>
+      </li>
+      <li><b>Further Actions:</b> 
+        <ul>
+          <li>Review payment status validation cues (unallocated or over-allocated warnings).</li>
+          <li>Use <b>WA Pay</b> or <b>WA Image</b> to dispatch details directly via WhatsApp, or click <b>Save Order</b> to download the receipt image locally.</li>
+        </ul>
+      </li>
+    </ol>
+    <div class="modal-actions">
+      <button type="button" class="close-btn" onclick="toggleModal('helpModal', false); openManageItemsModal();">🛠 Manage Items</button>
+      <button type="button" class="close-btn" onclick="toggleModal('helpModal', false); openManagePaymentModal();">💳 Manage Payment Methods</button>
+      <button class="close-btn" onclick="toggleModal('helpModal', false)">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// ---- Fixed activity log + status line ----
+// setMsg() is the single place status text gets written: it updates the
+// short #formMsg line (as before) AND appends a timestamped copy to the
+// persistent #appLog panel, so nothing shown to the user is ever lost —
+// tapping/focusing the log reveals the full history even after the
+// one-line status above it has moved on to the next message.
+let logEntries = [];
+// Level can be a legacy boolean (true='error', false='success') or one of
+// 'info' | 'success' | 'warning' | 'error' | 'progress' — lets every call
+// site distinguish what actually happened instead of just red/not-red.
+function normalizeLevel(level){
+  if(level === true) return 'error';
+  if(level === false || level == null) return 'success';
+  return level;
+}
+const LEVEL_COLOR = { info: 'var(--ink)', success: 'var(--primary)', warning: '#B4700A', error: 'var(--danger)', progress: '#666' };
+function logMsg(text, level){
+  const lvl = normalizeLevel(level);
+  const d = new Date();
+  const ts = [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+  logEntries.push({ ts, text: String(text), level: lvl });
+  if(logEntries.length > 300) logEntries.shift();
+  renderLog();
+}
+function renderLog(){
+  const el = document.getElementById('appLog');
+  if(!el) return;
+  el.innerHTML = logEntries.map(e => `<div class="log-line ${e.level}">[${e.ts}] ${esc(e.text)}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+function setMsg(text, level){
+  const lvl = normalizeLevel(level);
+  const el = $('formMsg');
+  if(el){ el.style.color = LEVEL_COLOR[lvl] || LEVEL_COLOR.success; el.textContent = text; }
+  if(text) logMsg(text, lvl);
+}
+function expandLog(){ const el = $('appLog'); if(el) el.scrollTop = el.scrollHeight; }
+
+// ===================== Predefined config (items, receivers, themes) =====================
+// These carry NO hardcoded business data in this file. The live values
+// come entirely from Firestore's "config" collection (docs "items",
+// "receivers", "themes"), mirrored into localStorage exactly like orders
+// and customers: the local mirror loads first so entry stays instant even
+// offline, and a realtime Firestore listener (registered further down,
+// once Firebase is ready) keeps both the mirror and these live values in
+// sync with whatever any other device saves — in the background, without
+// ever blocking data entry. A device with neither a local mirror nor a
+// reachable Firestore doc simply starts with empty lists — the "Add New
+// Item" / "Add New Payment Method" forms (and the Manage screens) are
+// how the catalogue gets built from there, and every entry made that way
+// syncs to Firestore for every other device to pick up.
+
+// No business content is embedded here. Everything below is populated by
+// loadConfigFromLocal() (local mirror) and then kept live by
+// watchSettingsDoc()/watchConfigDoc() (Firestore) — see the "Cloud +
+// local mirror" section further down. rowCount keeps a minimal numeric
+// fallback purely so buildRows() always draws at least one row before
+// settings load; it is not business data.
+const CONFIG = {
+  company: { name: '', address: '' },
+  receivers: [],   // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('receivers', ...)
+  items: [],       // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('items', ...)
+  upiRef: '',
+  rowCount: 5,
+  scanNote: {
+    en1: '🔹 If your amount is above ₹2,000, forward this QR to another nearby mobile, open it and scan from the payment mobile.',
+    ta1: '🔹 தொகை ₹2,000-க்கு மேல் இருந்தால், இந்த QR கோடை அருகில் உள்ள மற்றொரு மொபைலுக்கு அனுப்பி, பணம் செலுத்தும் மொபைலில் திறந்து ஸ்கேன் செய்யவும்.',
+    en2: '🔹 Send a screenshot of payment showing the payment reference number. Thank you for your prompt payment!',
+    ta2: '🔹 பணம் செலுத்திய பிறகு, பணம் செலுத்தியதற்கான ரெஃபரன்ஸ் நம்பர் தெரியும்படி ஸ்கிரீன்ஷாட் அனுப்பவும். உங்கள் உடனடி பணம் செலுத்தலுக்கு நன்றி!'
+  },
+  paymentMessageTemplate: ''
+};
+
+// Fills in {token} placeholders from vars; unknown tokens become ''.
+function renderTemplate(tpl, vars){
+  return String(tpl || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : ''));
+}
+
+// No embedded content — populated by loadConfigFromLocal() / watchConfigDoc('appreciation', ...).
+let customerAppreciation = [];
+
+let currentAppreciation = { text: '', emojis: ['', ''] };
+function randomizeAppreciation(){
+  if(!customerAppreciation.length){ currentAppreciation = { text: '', emojis: ['', ''] }; return; }
+  const randomIndex = Math.floor(Math.random() * customerAppreciation.length);
+  currentAppreciation = customerAppreciation[randomIndex];
+}
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => n.toString().padStart(2,'0');
+const inr = n => Math.round(n).toString();
+const fmt = n => Math.round(n).toString();
+// "10 + 2 = 12" when there's a free quantity; plain "10" when there isn't
+// — used by both the entry screen footer and the generated bill image.
+const formatQtyFree = (qty, free) => free > 0 ? `${qty} + ${free} = ${qty + free}` : String(qty);
+
+function limit7Digits(el) { if (el.value.length > 7) el.value = el.value.slice(0, 7); }
+
+function handleEnterFocus(e, nextId) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const nextEl = $(nextId);
+    if (nextEl) { nextEl.focus(); if (typeof nextEl.select === 'function') nextEl.select(); }
+  }
+}
+
+let THEME = {};
+// Live theme palette — no hardcoded palette in this file; loaded from the
+// local mirror (loadConfigFromLocal) and kept in sync with Firestore's
+// config/themes doc (watchConfigDoc), where the themes are already saved.
+let STORED_THEMES = [];
+
+function applyRandomTheme(){
+  if(!STORED_THEMES.length) return; // config not loaded yet — CSS defaults stay in effect
+  const themeIdx = Math.floor(Math.random() * STORED_THEMES.length);
+  const theme = STORED_THEMES[themeIdx];
+  THEME = { name: theme.name, primary: theme.primary };
+  const r = document.documentElement.style;
+  r.setProperty('--primary', theme.primary);
+  r.setProperty('--primary-light', theme.primaryLight);
+  r.setProperty('--secondary', theme.secondary);
+  r.setProperty('--accent', theme.accent);
+  r.setProperty('--bg-main', theme.bgMain);
+  r.setProperty('--row-1', theme.rowColors[0]);
+  r.setProperty('--row-2', theme.rowColors[1]);
+  r.setProperty('--row-3', theme.rowColors[2]);
+  r.setProperty('--row-4', theme.rowColors[3]);
+  r.setProperty('--row-5', theme.rowColors[4]);
+  r.setProperty('--row-6', theme.rowColors[5]);
+  const hue = parseInt(theme.primary.slice(1), 16);
+  r.setProperty('--shadow-color', `rgba(${(hue >> 16) & 255}, ${(hue >> 8) & 255}, ${hue & 255}, 0.35)`);
+}
+
+function getRandomDynamicRowStyle(sno){
+  const rowColors = THEME.rowColors || ['#FFE5B4', '#B4E7FF', '#E5FFB4', '#FFB4E5', '#F5B4FF', '#FFE5CC'];
+  const color = rowColors[sno % rowColors.length];
+  return `background-color: ${color};`;
+}
+
+function setDefaultDate(){
+  const d = new Date();
+  $('orderDate').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
+// Order number format: DDHHMM (day, hour, minute — 6 digits). Only used to
+// seed a NEW bill's number; loading/cycling to an existing saved order
+// always keeps that order's original number untouched (see
+// loadOrderFromCloud / cycleOrder), so historic numbers never get rewritten.
+function deriveOrderNo(dateStr){
+  const now = new Date();
+  const day = dateStr ? new Date(dateStr + 'T00:00:00').getDate() : now.getDate();
+  return pad(day) + pad(now.getHours()) + pad(now.getMinutes());
+}
+
+let orderNoManual = false;
+function refreshOrderNo(){
+  if(orderNoManual) return;
+  $('orderNo').value = deriveOrderNo($('orderDate').value);
+  scheduleUpdate();
+}
+
+function padOrderNo(){
+  let v = $('orderNo').value.replace(/\D/g,'').slice(0,6);
+  if(!v) v = deriveOrderNo($('orderDate').value);
+  $('orderNo').value = v.padStart(6,'0');
+  scheduleUpdate();
+}
+
+function onPhoneInput(){
+  const el = $('custPhone'), hint = $('phoneHint'), digits = el.value.replace(/\D/g,'');
+  if(!digits.length){ hint.textContent = 'Optional — required only to send on WhatsApp'; hint.className = 'field-hint'; }
+  else if(normalizePhone(el.value)){ hint.textContent = '✓ Valid number'; hint.className = 'field-hint ok'; }
+  else { hint.textContent = `Enter a valid mobile number (${digits.length} digits)`; hint.className = 'field-hint warn'; }
+  scheduleUpdate();
+}
+
+let paymentRows = [{ receiverIdx: 0, amount: null }];
+let lastOrderAmountVal = 0, activePayRowModalIdx = null;
+
+function mergeAndCleanPaymentRows() {
+  const merged = [], map = new Map();
+  for (const row of paymentRows) {
+    const amt = row.amount || 0;
+    if (amt > 0 || paymentRows.length === 1) {
+      if (row.receiverIdx !== null && map.has(row.receiverIdx)) {
+        merged[map.get(row.receiverIdx)].amount = Math.min(9999999, merged[map.get(row.receiverIdx)].amount + amt);
+      } else {
+        if (row.receiverIdx !== null) map.set(row.receiverIdx, merged.length);
+        merged.push({ receiverIdx: row.receiverIdx, amount: amt });
+      }
+    }
+  }
+  paymentRows = merged;
+}
+
+function getRemainingBalance(excludeIdx = -1) {
+  let allocated = 0;
+  paymentRows.forEach((r, i) => { if (i !== excludeIdx && r.amount > 0) allocated += r.amount; });
+  return Math.max(0, Math.round(lastOrderAmountVal - allocated));
+}
+
+function handleOrderAmountChange(newOrderAmt) {
+  if (lastOrderAmountVal === newOrderAmt) return;
+  if (paymentRows.length === 1) paymentRows[0].amount = newOrderAmt > 0 ? newOrderAmt : null;
+  else if (paymentRows.reduce((sum, r) => sum + (r.amount || 0), 0) > newOrderAmt) {
+    paymentRows = [{ receiverIdx: 0, amount: newOrderAmt > 0 ? newOrderAmt : null }];
+  }
+  lastOrderAmountVal = newOrderAmt;
+  renderPaymentRows();
+}
+
+function renderPaymentRows(){
+  mergeAndCleanPaymentRows();
+  if (!paymentRows.length) paymentRows = [{ receiverIdx: 0, amount: lastOrderAmountVal > 0 ? lastOrderAmountVal : null }];
+  const container = $('paymentRowsContainer');
+  container.innerHTML = '';
+  paymentRows.forEach((row, idx) => {
+    const receiver = row.receiverIdx !== null ? CONFIG.receivers[row.receiverIdx] : null;
+    const labelText = receiver ? receiver.name : 'Select Payment Method';
+    const div = document.createElement('div');
+    div.className = `pay-row pay-row-${idx % 4}`;
+    div.innerHTML = `
+      <button type="button" class="pay-method ${row.receiverIdx === null ? 'unselected' : ''}" id="payMethodBtn_${idx}" tabindex="${40 + idx * 2}" title="${esc(labelText)}" onclick="openPaymentMethodModal(${idx})">${esc(labelText)}</button>
+      <input type="number" class="pay-amount" id="payAmountInput_${idx}" tabindex="${41 + idx * 2}" placeholder="Amount" min="0" max="9999999" maxlength="7"
+        value="${row.amount != null ? row.amount : ''}" onfocus="this.select()"
+        onkeydown="if(event.key==='Enter'){ event.preventDefault(); onPaymentAmountBlur(${idx}); }"
+        oninput="limit7Digits(this); onPaymentAmountInput(${idx})" onblur="onPaymentAmountBlur(${idx})">`;
+    container.appendChild(div);
+  });
+  const addBtn = document.querySelector('.add-pay-btn');
+  if(addBtn) addBtn.tabIndex = 40 + paymentRows.length * 2;
+}
+
+function addPaymentRow() {
+  mergeAndCleanPaymentRows();
+  const rem = getRemainingBalance(), newIdx = paymentRows.length;
+  paymentRows.push({ receiverIdx: 0, amount: rem > 0 ? rem : null });
+  renderPaymentRows();
+  scheduleUpdate();
+  openPaymentMethodModal(newIdx);
+}
+
+function updatePaymentStatus(data){
+  const el = $('paymentStatus');
+  if(!el) return;
+  if(data.orderAmountVal <= 0){ el.textContent = 'Add items to determine the order amount.'; el.className = 'field-hint'; return; }
+  if (data.paymentAllocations.some(a => a.receiver === null)) { el.textContent = '⚠ Select a payment method for all entries.'; el.className = 'field-hint warn'; return; }
+  const diff = data.orderAmountVal - Math.round(data.totalAllocated);
+  if(diff > 0){ el.textContent = `⚠ ${inr(diff)} still unallocated — payment must be fully settled.`; el.className = 'field-hint warn'; }
+  else if(diff < 0){ el.textContent = `⚠ Over-allocated by ${inr(-diff)}.`; el.className = 'field-hint warn'; }
+  else { el.textContent = '✓ Fully allocated.'; el.className = 'field-hint ok'; }
+}
+
+function openPaymentMethodModal(idx){
+  activePayRowModalIdx = idx;
+  $('paymentMethodModalTitle').textContent = `Select Payment Method — ${inr(getRemainingBalance(idx))} Remaining`;
+  const list = $('paymentMethodList');
+  list.innerHTML = '';
+  const currentReceiverIdx = paymentRows[idx] ? paymentRows[idx].receiverIdx : null;
+  CONFIG.receivers.forEach((r, rIdx) => {
+    if(r.disabled && rIdx !== currentReceiverIdx) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = r.upi ? `${r.name} — ${r.upi}` : r.name;
+    b.onclick = () => selectPaymentMethod(idx, rIdx);
+    list.appendChild(b);
+  });
+  toggleModal('paymentMethodModal', true);
+}
+
+function closePaymentMethodModal(){
+  if (activePayRowModalIdx !== null && paymentRows[activePayRowModalIdx] && paymentRows[activePayRowModalIdx].receiverIdx === null) {
+    paymentRows[activePayRowModalIdx].receiverIdx = 0;
+  }
+  toggleModal('paymentMethodModal', false);
+  renderPaymentRows();
+  scheduleUpdate();
+}
+
+function selectPaymentMethod(targetIdx, receiverIdx) {
+  activePayRowModalIdx = null;
+  toggleModal('paymentMethodModal', false);
+  let dupIdx = paymentRows.findIndex((r, i) => i !== targetIdx && r.receiverIdx === receiverIdx);
+  let activeIdx = targetIdx;
+
+  if (dupIdx !== -1) {
+    let prefill = paymentRows[targetIdx].amount || getRemainingBalance(targetIdx);
+    paymentRows[dupIdx].amount = Math.min(9999999, (paymentRows[dupIdx].amount || 0) + prefill);
+    paymentRows.splice(targetIdx, 1);
+    activeIdx = dupIdx;
+  } else {
+    paymentRows[targetIdx].receiverIdx = receiverIdx;
+    if (!paymentRows[targetIdx].amount) paymentRows[targetIdx].amount = getRemainingBalance(targetIdx);
+  }
+
+  renderPaymentRows();
+  scheduleUpdate();
+  setTimeout(() => { const input = $(`payAmountInput_${activeIdx}`); if (input) { input.focus(); input.select(); } }, 50);
+}
+
+function onPaymentAmountInput(idx) {
+  const el = $(`payAmountInput_${idx}`);
+  if (!el) return;
+  let val = el.value !== '' ? parseFloat(el.value) : null;
+  if (val > 9999999) val = 9999999;
+  paymentRows[idx].amount = val;
+  scheduleUpdate();
+}
+
+function onPaymentAmountBlur(idx) {
+  let row = paymentRows[idx];
+  if (!row) return;
+
+  if (!row.amount || isNaN(row.amount)) {
+    if (paymentRows.length > 1) paymentRows.splice(idx, 1);
+    else { row.amount = lastOrderAmountVal; row.receiverIdx = 0; }
+    renderPaymentRows();
+    scheduleUpdate();
+    return;
+  }
+
+  const remainingOther = getRemainingBalance(idx);
+  if (row.amount > remainingOther) row.amount = remainingOther;
+
+  renderPaymentRows();
+  scheduleUpdate();
+
+  const rem = getRemainingBalance();
+  if (rem > 0) addPaymentRow();
+  else if (rem === 0 && lastOrderAmountVal > 0) {
+    setTimeout(() => { const btn = $('btnPay'); if (btn && !btn.disabled) btn.focus(); }, 50);
+  }
+}
+
+// Focus (and, where meaningful, select) the field that needs the user's
+// attention next — used both for the normal forward-navigation chain and
+// to draw attention to a missing/invalid field before an action.
+function focusField(id){
+  const el = $(id);
+  if(!el) return;
+  el.focus();
+  if(typeof el.select === 'function') el.select();
+  if(typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// After an item row's qty/rate is set (by modal or by typing), move on to
+// the next row's item picker, or to the discount field if this was the
+// last row on the form.
+function focusNextRowOrDiscount(sno){
+  const nextDesc = $(`desc_row_${sno + 1}`);
+  if(nextDesc) focusField(nextDesc.id); else focusField('discountLabel');
+}
+
+function createRowElement(sno){
+  const tr = document.createElement('tr');
+  const styleStr = getRandomDynamicRowStyle(sno);
+  const base = 10 + (sno - 1) * 4;
+  tr.innerHTML = `
+    <td class="sno" style="${styleStr}">${sno}</td>
+    <td style="${styleStr}"><div class="desc-wrap"><input type="text" class="desc tap-field" id="desc_row_${sno}" tabindex="${base + 1}" maxlength="25" placeholder="Tap item" onclick="if(!this.value.trim()) openItemModal(this)" onfocus="this.select()" onblur="handleDescCommit(this)" onkeydown="if(event.key==='Enter'){event.preventDefault(); if(!this.value.trim()) openItemModal(this); else { handleDescCommit(this); openQtyModal(this); }}"><button type="button" class="desc-pick-btn" tabindex="-1" onclick="openItemModal(this)" title="Choose item">☰</button></div></td>
+    <td style="${styleStr}"><input type="text" class="qty tap-field" id="qty_row_${sno}" tabindex="${base + 2}" inputmode="numeric" placeholder="Qty" readonly onclick="openQtyModal(this)" onkeydown="if(event.key==='Enter'){event.preventDefault(); openQtyModal(this);}"></td>
+    <td style="${styleStr}"><input type="text" class="free-qty" id="free_row_${sno}" tabindex="${base + 3}" maxlength="3" inputmode="numeric" placeholder="-" oninput="calcRow(this, false)" onfocus="this.select()" onkeydown="handleEnterFocus(event, 'rate_row_${sno}')"></td>
+    <td style="${styleStr}"><input type="number" class="rate" id="rate_row_${sno}" tabindex="${base + 4}" min="0" max="9999999" oninput="limit7Digits(this); calcRow(this, false)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault(); focusNextRowOrDiscount(${sno});}"></td>
+    <td class="amount" data-val="0" style="${styleStr}">—</td>`;
+  return tr;
+}
+
+function buildRows(){
+  const tbody = $('itemsBody');
+  tbody.innerHTML = '';
+  for(let i=1;i<=CONFIG.rowCount;i++) tbody.appendChild(createRowElement(i));
+}
+
+function addRow(){ $('itemsBody').appendChild(createRowElement($('itemsBody').children.length + 1)); }
+
+function checkRowExpansion(row){
+  const rows = $('itemsBody').querySelectorAll('tr');
+  if(row === rows[rows.length - 1] && row.querySelector('.desc').value.trim() !== ''){ addRow(); addRow(); }
+}
+
+const getItemConfig = desc => CONFIG.items.find(it => it.name === desc) || null;
+const toRow = target => target.tagName === 'TR' ? target : target.closest('tr');
+const rowSerial = row => row.querySelector('.sno').textContent;
+
+function clearRow(row){
+  row.querySelector('.desc').value = '';
+  row.querySelector('.rate').value = '';
+  row.querySelector('.qty').value = '';
+  row.querySelector('.free-qty').value = '';
+  row.querySelector('.amount').dataset.val = 0;
+  row.querySelector('.amount').textContent = '—';
+}
+
+let activeItemRow = null;
+function openItemModal(target){
+  activeItemRow = toRow(target);
+  $('itemModalTitle').textContent = `Select Item #${rowSerial(activeItemRow)}`;
+  const list = $('itemList');
+  list.innerHTML = '';
+  CONFIG.items.forEach(it => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = `${it.name} — ${fmt(it.rate)} (MOQ ${it.moq})`;
+    b.onclick = () => {
+      activeItemRow.querySelector('.desc').value = it.name;
+      activeItemRow.querySelector('.rate').value = it.rate;
+      activeItemRow.querySelector('.qty').value = it.moq;
+      calcRow(activeItemRow.querySelector('.qty'), true);
+      checkRowExpansion(activeItemRow);
+      toggleModal('itemModal', false);
+      openQtyModal(activeItemRow);
+    };
+    list.appendChild(b);
+  });
+  const othersBtn = document.createElement('button');
+  othersBtn.type = 'button';
+  othersBtn.className = 'others-btn';
+  othersBtn.textContent = '✏️ Others — type your own item';
+  othersBtn.onclick = () => { $('customItemBox').style.display = 'flex'; $('customItemInput').focus(); };
+  list.appendChild(othersBtn);
+
+  const addNewBtn = document.createElement('button');
+  addNewBtn.type = 'button';
+  addNewBtn.className = 'add-new-btn';
+  addNewBtn.textContent = '➕ Add New Item — save for future orders';
+  addNewBtn.onclick = () => { openNewItemModal('order'); };
+  list.appendChild(addNewBtn);
+
+  $('customItemBox').style.display = 'none';
+  toggleModal('itemModal', true);
+}
+
+// Lets the user directly type/edit a description instead of only picking
+// from the modal. Called on blur so a manual edit still triggers row
+// auto-expansion and totals recalculation just like a modal pick does.
+function handleDescCommit(el){
+  const row = toRow(el);
+  checkRowExpansion(row);
+  scheduleUpdate();
+}
+
+// ===================== Item add/edit (shared form) =====================
+// newItemContext: 'order' = opened mid order-entry from the item picker —
+//   saving both persists the item AND applies it to the row that was tapped.
+// 'manage' = opened from Manage Items — saving just persists it, no row involved.
+// editingItemIndex: null when adding, otherwise the CONFIG.items index being edited.
+let newItemContext = 'order';
+let editingItemIndex = null;
+
+function openNewItemModal(context){
+  newItemContext = context;
+  editingItemIndex = null;
+  if(context === 'order') toggleModal('itemModal', false);
+  $('newItemModalTitle').textContent = 'Add New Item';
+  $('newItemModalHint').textContent = "Saved permanently — it'll appear in the item list for future orders too.";
+  $('newItemSaveBtn').textContent = context === 'order' ? '✅ Save & Use This Item' : '✅ Save Item';
+  $('newItemName').value = '';
+  $('newItemRate').value = '';
+  $('newItemMoq').value = '';
+  $('newItemFree').value = '';
+  toggleModal('newItemModal', true);
+  setTimeout(() => $('newItemName').focus(), 50);
+}
+
+function openEditItemModal(idx){
+  newItemContext = 'manage';
+  editingItemIndex = idx;
+  const it = CONFIG.items[idx];
+  toggleModal('manageItemsModal', false);
+  $('newItemModalTitle').textContent = 'Edit Item';
+  $('newItemModalHint').textContent = 'Changes save permanently and apply to future orders — past bills are unaffected.';
+  $('newItemSaveBtn').textContent = '✅ Save Changes';
+  $('newItemName').value = it.name;
+  $('newItemRate').value = it.rate;
+  $('newItemMoq').value = it.moq;
+  $('newItemFree').value = it.freePerMoq || '';
+  toggleModal('newItemModal', true);
+  setTimeout(() => $('newItemName').focus(), 50);
+}
+
+function cancelNewItemModal(){
+  toggleModal('newItemModal', false);
+  if(newItemContext === 'order') openItemModal(activeItemRow);
+  else openManageItemsModal();
+}
+
+function saveNewItem(){
+  const name = $('newItemName').value.trim();
+  const rate = parseFloat($('newItemRate').value) || 0;
+  const moq = parseInt($('newItemMoq').value) || 1;
+  const free = parseInt($('newItemFree').value) || 0;
+  if(!name){ $('newItemName').focus(); return; }
+  const dupIdx = CONFIG.items.findIndex(it => it.name === name);
+  if(dupIdx !== -1 && dupIdx !== editingItemIndex){
+    alert('An item with this name already exists — pick it or edit that one instead.');
+    $('newItemName').focus();
+    return;
+  }
+
+  if(editingItemIndex !== null){
+    CONFIG.items[editingItemIndex] = { ...CONFIG.items[editingItemIndex], name, rate, moq: moq > 0 ? moq : 1, freePerMoq: free };
+  } else {
+    CONFIG.items.push({ name, rate, moq: moq > 0 ? moq : 1, freePerMoq: free });
+  }
+  persistConfigLocal('items', CONFIG.items);
+  pushConfigToCloud('items', CONFIG.items);
+  toggleModal('newItemModal', false);
+
+  if(newItemContext === 'order'){
+    const row = activeItemRow;
+    if(row){
+      row.querySelector('.desc').value = name;
+      row.querySelector('.rate').value = rate;
+      row.querySelector('.qty').value = moq > 0 ? moq : 1;
+      calcRow(row.querySelector('.qty'), true);
+      checkRowExpansion(row);
+      openQtyModal(row);
+    }
+  } else {
+    openManageItemsModal();
+  }
+}
+
+// ===================== Manage Items (browse / edit / delete) =====================
+async function openManageItemsModal(){
+  toggleModal('itemModal', false);
+  await refreshConfigFromCloud('items');
+  renderManageItemsList();
+  toggleModal('manageItemsModal', true);
+}
+
+function renderManageItemsList(){
+  const list = $('manageItemsList');
+  list.innerHTML = '';
+  if(CONFIG.items.length === 0){
+    list.innerHTML = '<div class="field-hint">No items yet — add one below.</div>';
+    return;
+  }
+  CONFIG.items.forEach((it, idx) => {
+    const row = document.createElement('div');
+    row.className = 'manage-row';
+    const sub = `${fmt(it.rate)} · MOQ ${it.moq}${it.freePerMoq ? ' · Free ' + it.freePerMoq + '/MOQ' : ''}`;
+    row.innerHTML = `
+      <div class="manage-row-info">
+        <div class="manage-row-name">${esc(it.name)}</div>
+        <div class="manage-row-sub">${esc(sub)}</div>
+      </div>
+      <div class="manage-row-actions">
+        <button type="button" class="manage-edit-btn">✏️</button>
+        <button type="button" class="manage-del-btn">🗑</button>
+      </div>`;
+    row.querySelector('.manage-edit-btn').onclick = () => openEditItemModal(idx);
+    row.querySelector('.manage-del-btn').onclick = () => deleteItemAt(idx);
+    list.appendChild(row);
+  });
+}
+
+function deleteItemAt(idx){
+  const it = CONFIG.items[idx];
+  if(!confirm(`Delete "${it.name}"? Past bills that used it are unaffected, but this can't be undone here.`)) return;
+  CONFIG.items.splice(idx, 1);
+  persistConfigLocal('items', CONFIG.items);
+  pushConfigToCloud('items', CONFIG.items);
+  renderManageItemsList();
+}
+
+// ===================== Payment method add/edit (shared form) =====================
+// newPaymentContext mirrors newItemContext: 'order' opened from the payment
+// picker mid-allocation (saving also selects it for the row in progress),
+// 'manage' opened from Manage Payment Methods (just persists it).
+let newPaymentContext = 'order';
+let editingPaymentIndex = null;
+
+function openNewPaymentModal(context){
+  newPaymentContext = context;
+  editingPaymentIndex = null;
+  if(context === 'order') toggleModal('paymentMethodModal', false);
+  else toggleModal('managePaymentModal', false);
+  $('newPaymentModalTitle').textContent = 'Add New Payment Method';
+  $('newPaymentSaveBtn').textContent = context === 'order' ? '✅ Save & Use This Method' : '✅ Save Method';
+  $('newPaymentName').value = '';
+  $('newPaymentUpi').value = '';
+  toggleModal('newPaymentModal', true);
+  setTimeout(() => $('newPaymentName').focus(), 50);
+}
+
+function openEditPaymentModal(idx){
+  newPaymentContext = 'manage';
+  editingPaymentIndex = idx;
+  const r = CONFIG.receivers[idx];
+  toggleModal('managePaymentModal', false);
+  $('newPaymentModalTitle').textContent = 'Edit Payment Method';
+  $('newPaymentSaveBtn').textContent = '✅ Save Changes';
+  $('newPaymentName').value = r.name;
+  $('newPaymentUpi').value = r.upi || '';
+  toggleModal('newPaymentModal', true);
+  setTimeout(() => $('newPaymentName').focus(), 50);
+}
+
+function cancelNewPaymentModal(){
+  toggleModal('newPaymentModal', false);
+  if(newPaymentContext === 'order') openPaymentMethodModal(activePayRowModalIdx);
+  else openManagePaymentModal();
+}
+
+function saveNewPayment(){
+  const name = $('newPaymentName').value.trim();
+  const upi = $('newPaymentUpi').value.trim();
+  if(!name){ $('newPaymentName').focus(); return; }
+  const dupIdx = CONFIG.receivers.findIndex(r => r.name === name);
+  if(dupIdx !== -1 && dupIdx !== editingPaymentIndex){
+    alert('A payment method with this name already exists — pick it or edit that one instead.');
+    $('newPaymentName').focus();
+    return;
+  }
+
+  let targetIdx;
+  if(editingPaymentIndex !== null){
+    CONFIG.receivers[editingPaymentIndex] = { ...CONFIG.receivers[editingPaymentIndex], name, upi: upi || null };
+    targetIdx = editingPaymentIndex;
+  } else {
+    CONFIG.receivers.push({ name, upi: upi || null });
+    targetIdx = CONFIG.receivers.length - 1;
+  }
+  persistConfigLocal('receivers', CONFIG.receivers);
+  pushConfigToCloud('receivers', CONFIG.receivers);
+  toggleModal('newPaymentModal', false);
+
+  if(newPaymentContext === 'order'){
+    const rowIdx = activePayRowModalIdx;
+    if(rowIdx !== null) selectPaymentMethod(rowIdx, targetIdx);
+  } else {
+    openManagePaymentModal();
+  }
+}
+
+// ===================== Manage Payment Methods (browse / edit / hide) =====================
+// Receivers are referenced by array INDEX both in the live payment-split UI
+// and in saved order JSON (see selectPaymentMethod / order save+load), so
+// removing an entry would silently corrupt old saved bills that pointed at
+// the slots after it. "Hide" instead sets disabled:true — it drops out of
+// the picker for new orders but the object (and its index) stays put, so
+// historic bills still resolve correctly.
+async function openManagePaymentModal(){
+  toggleModal('paymentMethodModal', false);
+  await refreshConfigFromCloud('receivers');
+  renderManagePaymentList();
+  toggleModal('managePaymentModal', true);
+}
+
+function renderManagePaymentList(){
+  const list = $('managePaymentList');
+  list.innerHTML = '';
+  if(CONFIG.receivers.length === 0){
+    list.innerHTML = '<div class="field-hint">No payment methods yet — add one below.</div>';
+    return;
+  }
+  CONFIG.receivers.forEach((r, idx) => {
+    const row = document.createElement('div');
+    row.className = 'manage-row' + (r.disabled ? ' is-disabled' : '');
+    row.innerHTML = `
+      <div class="manage-row-info">
+        <div class="manage-row-name">${esc(r.name)}${r.disabled ? ' (hidden)' : ''}</div>
+        <div class="manage-row-sub">${esc(r.upi || 'No UPI — cash style')}</div>
+      </div>
+      <div class="manage-row-actions">
+        <button type="button" class="manage-edit-btn">✏️</button>
+        <button type="button" class="manage-toggle-btn">${r.disabled ? 'Show' : 'Hide'}</button>
+      </div>`;
+    row.querySelector('.manage-edit-btn').onclick = () => openEditPaymentModal(idx);
+    row.querySelector('.manage-toggle-btn').onclick = () => togglePaymentDisabled(idx);
+    list.appendChild(row);
+  });
+}
+
+function togglePaymentDisabled(idx){
+  CONFIG.receivers[idx].disabled = !CONFIG.receivers[idx].disabled;
+  persistConfigLocal('receivers', CONFIG.receivers);
+  pushConfigToCloud('receivers', CONFIG.receivers);
+  renderManagePaymentList();
+}
+
+// ===================== Items, receivers & themes: cloud + local mirror =====================
+// Same local-first pattern as orders/customers below: the local mirror is
+// read synchronously at startup so entry is instant even before Firestore
+// responds (or entirely offline), and stays the fallback forever after.
+// Firestore keeps every device's mirror in sync via a realtime listener
+// (watchConfigDoc, wired up once Firebase is ready — see "firebase-ready"
+// handlers further down) that fires immediately with whatever's cached
+// and again on every future change, from any device, in the background.
+const LS_ITEMS_KEY = 'sf_items_v1';
+const LS_RECEIVERS_KEY = 'sf_receivers_v1';
+const LS_THEMES_KEY = 'sf_themes_v1';
+const LS_APPRECIATION_KEY = 'sf_appreciation_v1';
+const LS_SETTINGS_KEY = 'sf_settings_v1';
+const CONFIG_LS_KEYS = { items: LS_ITEMS_KEY, receivers: LS_RECEIVERS_KEY, themes: LS_THEMES_KEY, appreciation: LS_APPRECIATION_KEY };
+// One get/set pair per array-shaped config kind, so watchConfigDoc/
+// loadConfigFromLocal can stay generic instead of a growing if/else chain.
+const CONFIG_ARRAY = {
+  items:        { get: () => CONFIG.items,        set: v => { CONFIG.items = v; } },
+  receivers:    { get: () => CONFIG.receivers,     set: v => { CONFIG.receivers = v; } },
+  themes:       { get: () => STORED_THEMES,        set: v => { STORED_THEMES = v; } },
+  appreciation: { get: () => customerAppreciation, set: v => { customerAppreciation = v; } }
+};
+
+function persistConfigLocal(kind, list){
+  try{ localStorage.setItem(CONFIG_LS_KEYS[kind], JSON.stringify(list)); }
+  catch(e){ /* storage full/unavailable — changes still usable this session */ }
+}
+function readConfigLocal(kind){
+  try{ const p = JSON.parse(localStorage.getItem(CONFIG_LS_KEYS[kind]) || 'null'); return Array.isArray(p) ? p : null; }
+  catch(e){ return null; }
+}
+function persistSettingsLocal(obj){
+  try{ localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(obj)); }
+  catch(e){ /* storage full/unavailable */ }
+}
+function readSettingsLocal(){
+  try{ return JSON.parse(localStorage.getItem(LS_SETTINGS_KEY) || 'null'); }
+  catch(e){ return null; }
+}
+function applySettings(d){
+  if(!d) return;
+  if(d.company) CONFIG.company = d.company;
+  if(typeof d.upiRef === 'string') CONFIG.upiRef = d.upiRef;
+  if(Number.isFinite(d.rowCount) && d.rowCount > 0) CONFIG.rowCount = d.rowCount;
+  if(d.scanNote) CONFIG.scanNote = d.scanNote;
+  if(typeof d.paymentMessageTemplate === 'string') CONFIG.paymentMessageTemplate = d.paymentMessageTemplate;
+}
+
+// No fallback to sample/default data anywhere in here: if neither the
+// local mirror nor Firestore has this yet, the corresponding CONFIG
+// field simply stays empty (see reportConfigAvailability below, which
+// surfaces that as a visible warning instead of pretending it's fine).
+function loadConfigFromLocal(){
+  Object.keys(CONFIG_ARRAY).forEach(kind => { CONFIG_ARRAY[kind].set(readConfigLocal(kind) || []); });
+  applySettings(readSettingsLocal());
+  logMsg('Loaded catalogue from local cache.', 'info');
+  reportConfigAvailability();
+}
+
+// Point-1 requirement: don't silently proceed as if things are fine when
+// core config is genuinely missing everywhere — say so, visibly.
+function reportConfigAvailability(){
+  const missing = [];
+  if(!CONFIG.items.length) missing.push('items');
+  if(!CONFIG.receivers.length) missing.push('payment methods');
+  if(!CONFIG.company.name) missing.push('company settings');
+  if(missing.length) setMsg('No ' + missing.join(', ') + ' in local cache or cloud yet — add them via Manage screens, or in Firestore.', 'warning');
+}
+
+// Fire-and-forget push to Firestore, exactly like saveOrderToCloud/
+// upsertCustomerCloud — never awaited by a caller that needs to stay
+// responsive; a failure just leaves it queued for Firestore's own
+// offline retry once the connection is back.
+async function pushConfigToCloud(kind, list){
+  if(!fbReady()) return;
+  try{
+    const { db, doc, setDoc } = window.FB;
+    await setDoc(doc(db, 'config', kind), { list, updatedAt: Date.now() });
+  }catch(e){ /* offline — local mirror already has it; retried once online */ }
+}
+// (No in-app editor writes to config/settings yet — it's populated
+// directly in Firestore. Add a pushSettingsToCloud(obj) analogous to
+// pushConfigToCloud() here if/when a settings-editing screen is built.)
+
+// One realtime listener per config doc. Fires immediately with whatever
+// Firestore already has cached locally (near-instant, no network wait
+// thanks to enableIndexedDbPersistence), then again on every future
+// change from any device — that's the "background sync" half. Since the
+// data is already saved in Firestore, this never needs to seed anything;
+// it only writes back if this device already has local entries that
+// Firestore genuinely has no doc for yet (e.g. this exact config doc was
+// deleted server-side) — never with an empty list.
+function watchConfigDoc(kind, applyFn){
+  if(!fbReady()) return;
+  const { db, doc, onSnapshot, setDoc } = window.FB;
+  let seeded = false;
+  onSnapshot(doc(db, 'config', kind), snap => {
+    if(snap.exists()){
+      const list = snap.data().list;
+      if(Array.isArray(list) && list.length){
+        applyFn(list);
+        persistConfigLocal(kind, list);
+        refreshOpenConfigUI();
+        logMsg(`Synced ${kind} from cloud (${list.length}).`, 'success');
+      }
+    } else if(!seeded){
+      seeded = true;
+      const current = CONFIG_ARRAY[kind].get();
+      if(current && current.length) setDoc(doc(db, 'config', kind), { list: current, updatedAt: Date.now() }).catch(() => {});
+    }
+  }, () => { logMsg(`Cloud sync for ${kind} unavailable — using local cache.`, 'warning'); });
+}
+function watchSettingsDoc(){
+  if(!fbReady()) return;
+  const { db, doc, onSnapshot } = window.FB;
+  onSnapshot(doc(db, 'config', 'settings'), snap => {
+    if(snap.exists()){
+      applySettings(snap.data());
+      persistSettingsLocal(snap.data());
+      logMsg('Synced business settings from cloud.', 'success');
+    }
+    reportConfigAvailability();
+  }, () => { logMsg('Cloud sync for settings unavailable — using local cache.', 'warning'); });
+}
+
+// If a device is looking at the Manage Items / Manage Payment Methods list
+// when a change arrives from another device, refresh it in place instead
+// of leaving it showing stale data until the modal is reopened.
+// Root cause of edits occasionally "not saving": this device's in-memory
+// list can still be the just-loaded (possibly stale) local mirror for a
+// moment after Firebase becomes ready but before its first realtime
+// update arrives. Editing during that window and pushing straight to
+// Firestore would overwrite the cloud doc with an incomplete list. This
+// does one direct read of the real current cloud value immediately
+// before either Manage screen opens, so every edit made from here on is
+// always based on what's actually saved — never a stale local copy.
+async function refreshConfigFromCloud(kind){
+  if(!fbReady()) return;
+  try{
+    const { db, doc, getDoc } = window.FB;
+    const snap = await getDoc(doc(db, 'config', kind));
+    if(snap.exists()){
+      const list = snap.data().list;
+      if(Array.isArray(list)){
+        if(kind === 'items') CONFIG.items = list;
+        else if(kind === 'receivers') CONFIG.receivers = list;
+        else STORED_THEMES = list;
+        persistConfigLocal(kind, list);
+      }
+    }
+  }catch(e){ /* offline — the local mirror already loaded is used as-is */ }
+}
+
+function refreshOpenConfigUI(){
+  const itemsModal = document.getElementById('manageItemsModal');
+  if(itemsModal && itemsModal.style.display !== 'none') renderManageItemsList();
+  const payModal = document.getElementById('managePaymentModal');
+  if(payModal && payModal.style.display !== 'none') renderManagePaymentList();
+}
+
+
+function applyCustomItem(){
+  const val = $('customItemInput').value.trim();
+  if(!val) return;
+  const row = activeItemRow;
+  row.querySelector('.desc').value = val;
+  row.querySelector('.rate').value = '';
+  row.querySelector('.qty').value = 1;
+  row.querySelector('.free-qty').value = '';
+  row.querySelector('.amount').dataset.val = 0;
+  row.querySelector('.amount').textContent = '—';
+  checkRowExpansion(row);
+  $('customItemBox').style.display = 'none';
+  toggleModal('itemModal', false);
+  scheduleUpdate();
+  focusField(row.querySelector('.rate').id);
+}
+
+function finishEntry(){
+  toggleModal('itemModal', false);
+  toggleModal('qtyModal', false);
+  focusField('discountLabel');
+}
+
+let activeQtyRow = null;
+function openQtyModal(target){
+  activeQtyRow = toRow(target);
+  const desc = activeQtyRow.querySelector('.desc').value;
+  const itemCfg = getItemConfig(desc);
+  const moq = itemCfg ? itemCfg.moq : 1;
+  $('qtyModalTitle').textContent = `${rowSerial(activeQtyRow)}. ${desc || 'Item'} — Enter Qty`;
+  $('qtyCustomBox').style.display = 'none';
+
+  const grid = $('qtyGrid');
+  grid.innerHTML = '';
+  for(let i=1;i<=24;i++){
+    const val = moq * i;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = val;
+    b.onclick = () => {
+      activeQtyRow.querySelector('.qty').value = val;
+      calcRow(activeQtyRow.querySelector('.qty'), true);
+      const finishedRow = activeQtyRow;
+      toggleModal('qtyModal', false);
+      focusNextRowOrDiscount(parseInt(rowSerial(finishedRow)));
+    };
+    grid.appendChild(b);
+  }
+
+  const customBtn = document.createElement('button');
+  customBtn.type = 'button';
+  customBtn.className = 'others-btn';
+  customBtn.textContent = '✏️ Custom';
+  customBtn.onclick = () => {
+    $('qtyCustomBox').style.display = 'flex';
+    const input = $('qtyCustomInput');
+    input.value = activeQtyRow.querySelector('.qty').value || '';
+    input.focus(); input.select();
+  };
+  grid.appendChild(customBtn);
+  toggleModal('qtyModal', true);
+}
+
+function applyManualQty(){
+  const v = parseInt($('qtyCustomInput').value) || 0, row = activeQtyRow;
+  toggleModal('qtyModal', false);
+  if(!row) return;
+  if(v <= 0){ clearRow(row); scheduleUpdate(); openItemModal(row); return; }
+  row.querySelector('.qty').value = Math.min(v, 9999999);
+  calcRow(row.querySelector('.qty'), true);
+  focusNextRowOrDiscount(parseInt(rowSerial(row)));
+}
+
+function calcRow(el, autoFree = false){
+  const row = el.closest('tr');
+  const desc = row.querySelector('.desc').value;
+  const qty = parseInt(row.querySelector('.qty').value) || 0;
+  const rate = parseFloat(row.querySelector('.rate').value) || 0;
+  const amt = Math.round(qty * rate);
+  
+  if (autoFree) {
+    const freeInput = row.querySelector('.free-qty'), itemCfg = getItemConfig(desc);
+    freeInput.value = (itemCfg && itemCfg.freePerMoq > 0 && itemCfg.moq > 0 && qty >= itemCfg.moq)
+      ? Math.floor(qty / itemCfg.moq) * itemCfg.freePerMoq : '';
+  }
+
+  const amtCell = row.querySelector('.amount');
+  amtCell.dataset.val = amt;
+  amtCell.textContent = amt > 0 ? amt : '—';
+  scheduleUpdate();
+}
+
+function toggleDiscountOp(){
+  const btn = $('discountOp');
+  const newOp = btn.dataset.op === '-' ? '+' : '-';
+  btn.dataset.op = newOp; btn.textContent = newOp;
+  $('discountLabel').placeholder = newOp === '+' ? 'Add' : 'Discount';
+  scheduleUpdate();
+}
+
+function numberToWords(num){
+  num = Math.round(num);
+  if(num === 0) return 'Rupees Zero Only';
+  const ones = ['', 'One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['', '', 'Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const two = n => n < 20 ? ones[n] : tens[Math.floor(n/10)] + (n%10 ? ' ' + ones[n%10] : '');
+  const three = n => n >= 100 ? ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' ' + two(n%100) : '') : two(n);
+  
+  let str = '', crore = Math.floor(num/10000000); num %= 10000000;
+  let lakh = Math.floor(num/100000); num %= 100000;
+  let thousand = Math.floor(num/1000); num %= 1000;
+  
+  if(crore) str += three(crore) + ' Crore ';
+  if(lakh) str += three(lakh) + ' Lakh ';
+  if(thousand) str += three(thousand) + ' Thousand ';
+  if(num) str += three(num);
+  // Indian convention: currency name leads the figure, e.g. "Rupees One
+  // Thousand Two Hundred Only" rather than trailing it.
+  return 'Rupees ' + str.trim() + ' Only';
+}
+
+async function pickContact(){
+  if('contacts' in navigator && 'ContactsManager' in window){
+    try{
+      const contacts = await navigator.contacts.select(['name','tel'], {multiple:false});
+      if(contacts.length){
+        $('custName').value = ((contacts[0].name && contacts[0].name[0]) || '').slice(0, 20);
+        $('custPhone').value = ((contacts[0].tel && contacts[0].tel[0]) || '').slice(0, 13);
+        onPhoneInput(); scheduleUpdate();
+      }
+    }catch(e){ setMsg('Could not read contacts: ' + e.message, true); }
+  } else { setMsg('Contact picker not supported on this browser.', true); }
+}
+
+function normalizePhone(raw){
+  let digits = String(raw || '').trim().replace(/\D/g,'');
+  if(digits.length === 10) return '91' + digits;
+  if(digits.length === 11 && digits.startsWith('0')) return '91' + digits.slice(1);
+  if(digits.length === 12 && digits.startsWith('91')) return digits;
+  if(digits.length === 13) return digits;
+  return null;
+}
+
+async function collectData(){
+  const rows = [];
+  document.querySelectorAll('#itemsBody tr').forEach((tr, index) => {
+    const desc = tr.querySelector('.desc').value.trim();
+    const qty = parseInt(tr.querySelector('.qty').value) || 0;
+    const freeVal = parseInt(tr.querySelector('.free-qty').value) || 0;
+    const rate = parseFloat(tr.querySelector('.rate').value) || 0;
+    const amt = parseFloat(tr.querySelector('.amount').dataset.val) || 0;
+    if(desc && qty > 0 && rate > 0 && amt > 0) rows.push({ sno: rows.index = rows.length + 1, desc, qty, rate, amt, freeVal, index });
+  });
+
+  let subtotal = rows.reduce((s, r) => s + r.amt, 0);
+  let totalQty = rows.reduce((s, r) => s + r.qty, 0);
+  let totalFree = rows.reduce((s, r) => s + (r.freeVal || 0), 0);
+  let itemCount = rows.length;
+  const discVal = parseFloat($('discountVal').value) || 0;
+  const op = $('discountOp').dataset.op;
+  const customLabel = $('discountLabel').value.trim();
+  let orderAmt = Math.max(Math.round(op === '+' ? subtotal + discVal : subtotal - discVal), 0);
+
+  handleOrderAmountChange(orderAmt);
+  mergeAndCleanPaymentRows();
+
+  const paymentAllocations = paymentRows
+    .map(r => ({ receiver: r.receiverIdx !== null ? CONFIG.receivers[r.receiverIdx] : null, amount: r.amount || 0 }))
+    .filter(a => a.amount > 0);
+
+  const dateVal = $('orderDate').value;
+  return {
+    custName: ($('custName').value.trim() || 'Cash').slice(0, 20),
+    custPhone: $('custPhone').value.trim().slice(0, 13),
+    date: dateVal ? new Date(dateVal + 'T00:00:00').toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '',
+    date8: dateVal ? new Date(dateVal + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'2-digit' }).replace(/\//g, '-') : '',
+    orderNo: $('orderNo').value,
+    rows,
+    subtotalVal: subtotal,
+    itemCount,
+    totalQty,
+    totalFree,
+    discountVal: discVal,
+    discountOp: op,
+    discountLabelText: customLabel || (op === '+' ? 'Add' : 'Discount'),
+    orderAmountVal: orderAmt,
+    amountWords: 'Order Value: ' + numberToWords(orderAmt),
+    paymentAllocations,
+    totalAllocated: paymentAllocations.reduce((s, a) => s + a.amount, 0)
+  };
+}
+
+// Every UPI deep link carries all four required parameters: pn (payee
+// name), am (this transaction's fixed amount), cu (fixed "INR"), and tn
+// (fixed customer-name reference). None of these are ever exposed as
+// editable fields in the payment-method add/edit form — only Name and
+// UPI ID are collected there; the rest is always derived per-order.
+function buildUpiUrlFor(receiver, amount, custName){
+  const tn = `${CONFIG.upiRef} ${custName || ''}`.trim();
+  return `upi://pay?pa=${encodeURIComponent(receiver.upi)}&pn=${encodeURIComponent(receiver.name)}&am=${amount}&cu=INR&tn=${encodeURIComponent(tn)}`;
+}
+
+function updateEditorSummary(data){
+  $('footerItemCount').textContent = String(data.itemCount).slice(-2);
+  $('footerQtyFree').textContent = formatQtyFree(data.totalQty, data.totalFree);
+
+  $('footerAmt').textContent = String(Math.round(data.subtotalVal)).slice(-7);
+
+  $('edOrderAmount').textContent = inr(data.orderAmountVal);
+  $('edAmountWords').textContent = data.amountWords;
+
+  const bdEl = $('edPaymentBreakdown'), bdRows = $('edPaymentBreakdownRows');
+  if(data.paymentAllocations.length){
+    bdEl.style.display = 'block';
+    bdRows.innerHTML = data.paymentAllocations.map(a =>
+      `<div class="trow" style="border:none; padding:1px 0;"><span>${esc(a.receiver ? a.receiver.name : 'Unassigned')}</span><span>${inr(a.amount)}</span></div>`
+    ).join('');
+  } else bdEl.style.display = 'none';
+
+  updatePaymentStatus(data);
+}
+
+function orderImageTemplate(data, nonCashAllocations){
+  // Column layout mirrors the entry screen's items table: #, Item, a
+  // merged Qty group (rows keep separate Qty/Free/Rate; the header spans
+  // them and the footer collapses to one "Qty + Free = Total" figure), Amt.
+  const theadHtml = `<tr><th>#</th><th>Item</th><th colspan="3">Qty</th><th>Amt</th></tr>`;
+
+  const rowsHtml = data.rows.map((r, idx) => {
+    const rowStyle = getRandomDynamicRowStyle(idx + 1);
+    return `<tr style="${rowStyle}">
+      <td>${r.sno}</td>
+      <td class="d"><span class="img-item-name">${esc(r.desc)}</span></td>
+      <td>${r.qty}</td>
+      <td>${r.freeVal > 0 ? `<span class="img-free-lbl">${r.freeVal}</span>` : '-'}</td>
+      <td>${fmt(r.rate)}</td>
+      <td>${fmt(r.amt)}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="6" class="empty">No items added</td></tr>`;
+
+  const itemCountStr = String(data.itemCount).slice(-2);
+
+  // Same four footer cells, in the same order, as the entry screen's
+  // tfoot: count | caption | qty+free (merged) | amount.
+  const footerHtml = data.itemCount > 1 ? `
+    <tr class="subtotal-row" style="background:var(--primary-light); font-weight:900;">
+      <td style="text-align:center; padding:4px 2px; font-size:14px;">${itemCountStr}</td>
+      <td style="text-align:left; padding:4px 2px;">Counts and Sub Total</td>
+      <td colspan="3" style="text-align:center; padding:4px 2px;">${formatQtyFree(data.totalQty, data.totalFree)}</td>
+      <td style="text-align:right; padding:4px 2px;">₹${String(Math.round(data.subtotalVal)).slice(-7)}</td>
+    </tr>` : '';
+
+  const discRow = data.discountVal > 0 ? `<div class="row"><span>${esc(data.discountLabelText)}</span><span>${data.discountOp}${inr(data.discountVal)}</span></div>` : '';
+  // Payment methods block: row number (single digit) + name + 2 spaces + UPI id
+  // only — no payment link URL displayed here. The UPI deep-link is generated
+  // solely for the QR code and the WhatsApp payment message.
+  const paymentBreakdownHtml = data.paymentAllocations.length
+    ? `<div class="pay-breakdown"><b>Payment methods</b>${data.paymentAllocations.map((a, i) => {
+        const name = a.receiver ? a.receiver.name : 'Unassigned';
+        const upi = a.receiver && a.receiver.upi ? a.receiver.upi : '';
+        return `<div class="pb-row pmb-${i % 4}">
+          <div class="pb-num">${i + 1}</div>
+          <div class="pb-info">
+            <div class="pb-line1">${esc(name)}${upi ? '&nbsp;&nbsp;' + esc(upi) : ''}</div>
+          </div>
+          <div class="pb-amt">${inr(a.amount)}</div>
+        </div>`;
+      }).join('')}</div>`
+    : '';
+
+  let gridCellsHtml = '';
+  // ---- Partition-first QR grid: partitions are decided purely from qrCount,
+  // then (elsewhere, after these nodes exist in the DOM) each QR is generated
+  // into its own already-sized partition. 0 QR -> this block is skipped entirely.
+  if(nonCashAllocations.length > 0){
+    const qrCount = nonCashAllocations.length;
+    const variantClass = qrCount === 1 ? 'qr-count-1'
+                        : qrCount === 2 ? 'qr-count-2'
+                        : qrCount === 3 ? 'qr-count-3'
+                        : 'qr-count-4plus';
+
+    // Single unified colour for the whole instruction block (was
+    // previously mixing primary/secondary/accent line-by-line).
+    const instructionColor = 'var(--primary)';
+
+    gridCellsHtml = `<div class="grid-container ${variantClass}">`;
+
+    // Instruction partition — always grid-area "instr", occupying exactly
+    // one cell regardless of qrCount.
+    gridCellsHtml += `
+      <div class="grid-cell instruction" style="grid-area:instr;">
+        <div class="scan-note-grid">
+          <p class="en" style="color:${instructionColor};">${esc(CONFIG.scanNote.en1)}</p>
+          <p class="ta" style="color:${instructionColor};">${esc(CONFIG.scanNote.ta1)}</p>
+          <p class="en" style="color:${instructionColor};">${esc(CONFIG.scanNote.en2)}</p>
+          <p class="ta" style="color:${instructionColor};">${esc(CONFIG.scanNote.ta2)}</p>
+        </div>
+      </div>`;
+
+    // QR partitions — one per allocation. The qr-square-wrap keeps the QR
+    // square and lets it fill the full partition width with nothing overlaid
+    // on top of it (better scannability); the UPI id + amount caption sits
+    // in its own compact line below the QR, not on top of it.
+    nonCashAllocations.forEach((alloc, i) => {
+      const gridArea = `qr${i + 1}`;
+      const upiId = alloc.receiver && alloc.receiver.upi ? alloc.receiver.upi : '';
+      const amtStr = String(Math.round(alloc.amount));
+      gridCellsHtml += `
+        <div class="grid-cell qr-grid-cell" style="grid-area:${gridArea};">
+          <div class="qr-square-wrap">
+            <div class="qr-slot-container" id="qrSlot_${i}"></div>
+          </div>
+          <div class="qr-caption">${esc(upiId)}, ₹${amtStr}</div>
+        </div>`;
+    });
+
+    gridCellsHtml += `</div>`;
+  }
+
+  const leftEmojis = `${currentAppreciation.emojis[0]}${currentAppreciation.emojis[1]}`;
+  const rightEmojis = `${currentAppreciation.emojis[1]}${currentAppreciation.emojis[0]}`;
+
+  return `
+    <div class="order-header">
+      <div class="oh-no"><div class="oh-lbl">Number</div><div class="oh-val">${esc(data.orderNo)}</div></div>
+      <div class="oh-company"><div class="oh-name">${esc(CONFIG.company.name)}</div><div class="oh-addr">${esc(CONFIG.company.address)}</div></div>
+      <div class="oh-date"><div class="oh-lbl">Date</div><div class="oh-val">${esc(data.date8)}</div></div>
+    </div>
+    <div class="order-to">
+      <div><span class="lbl">Customer:</span><strong>${esc(data.custName) || 'Cash'}</strong></div>
+      ${data.custPhone ? `<div class="ph">${esc(data.custPhone)}</div>` : ''}
+    </div>
+    <table class="it">
+      <thead>${theadHtml}</thead>
+      <tbody>${rowsHtml}${footerHtml}</tbody>
+    </table>
+    <div class="ift">
+      ${discRow}
+      <div class="row grand">
+        <span class="amount-words-container">${esc(data.amountWords)}</span>
+        <span>₹${inr(data.orderAmountVal)}</span>
+      </div>
+    </div>
+    <div class="ty">
+      <span class="ty-emojis">${leftEmojis}</span>
+      <span class="fancy-text" id="dynamicAppreciationText">${esc(currentAppreciation.text)}</span>
+      <span class="ty-emojis">${rightEmojis}</span>
+    </div>
+    ${paymentBreakdownHtml}
+    ${gridCellsHtml}`;
+}
+
+let debounceTimer = null;
+function scheduleUpdate(){
+  markFormDirty();
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(renderOrderImage, 150);
+}
+
+async function renderOrderImage(){
+  const data = await collectData();
+  updateEditorSummary(data);
+  const nonCash = data.paymentAllocations.filter(a => a.receiver && a.receiver.upi);
+
+  const unassignedExists = data.paymentAllocations.some(a => a.receiver === null);
+  const diff = data.orderAmountVal - Math.round(data.totalAllocated);
+  const isValid = data.orderAmountVal > 0 && diff === 0 && data.rows.length > 0 && !unassignedExists;
+  const imageWrap = $('imageWrap');
+
+  $('btnPay').disabled = !isValid;
+  $('btnImage').disabled = !isValid;
+  $('btnSave').disabled = !isValid || isLocked; // a locked, just-loaded order has nothing new to save yet
+
+  // Live validation status while typing (not just on submit) — only logs
+  // when the actual reason changes, so it doesn't spam on every keystroke.
+  let reason = 'ok';
+  if(!data.rows.length) reason = 'no-items';
+  else if(unassignedExists) reason = 'unassigned-payment';
+  else if(diff !== 0) reason = 'amount-mismatch';
+  else if(data.orderAmountVal <= 0) reason = 'zero-amount';
+  if(reason !== lastValidityReason){
+    lastValidityReason = reason;
+    const messages = {
+      'ok': 'Form is valid.',
+      'no-items': 'Add at least one item to continue.',
+      'unassigned-payment': 'Select a payment method for every line.',
+      'amount-mismatch': `Payment allocation doesn't match the order amount yet.`,
+      'zero-amount': 'Order amount must be at least ₹1.'
+    };
+    logMsg(messages[reason], reason === 'ok' ? 'success' : 'info');
+  }
+
+  if(!isValid){
+    imageWrap.style.display = 'none';
+    $('orderImage').innerHTML = '';
+    return data;
+  }
+
+  imageWrap.style.display = 'block';
+
+  const container = $('orderImage');
+  container.innerHTML = orderImageTemplate(data, nonCash);
+
+  if(nonCash.length > 0){
+    let minAvailable = 150;
+    nonCash.forEach((_, i) => {
+      const slotContainer = $(`qrSlot_${i}`);
+      if(slotContainer){
+        const rect = slotContainer.getBoundingClientRect();
+        const side = Math.min(rect.width, rect.height);
+        if(side > 0 && side < minAvailable) minAvailable = side;
+      }
+    });
+
+    const qrTargetSize = Math.max(80, Math.floor(minAvailable));
+
+    nonCash.forEach((alloc, i) => {
+      const slotContainer = $(`qrSlot_${i}`);
+      if(slotContainer){
+        const upiUrl = buildUpiUrlFor(alloc.receiver, alloc.amount, data.custName);
+        generateQr(slotContainer, upiUrl, qrTargetSize, qrSafeColor(THEME.primary || '#0B5E64'));
+      }
+    });
+  }
+  return data;
+}
+
+// Some theme primaries (e.g. golds/light blues) are too light for reliable
+// QR contrast against a white background. Force a dark, scan-safe colour —
+// never a light theme colour — for the QR modules themselves.
+function qrSafeColor(hex){
+  const h = String(hex || '#0B5E64').replace('#', '');
+  const r = parseInt(h.substr(0, 2), 16) || 0;
+  const g = parseInt(h.substr(2, 2), 16) || 0;
+  const b = parseInt(h.substr(4, 2), 16) || 0;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if(luminance > 0.42){
+    const dr = Math.round(r * 0.42), dg = Math.round(g * 0.42), db = Math.round(b * 0.42);
+    return '#' + [dr, dg, db].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  return hex;
+}
+
+function generateQr(slot, text, size, colorHex){
+  slot.innerHTML = '';
+  if(typeof qrcode === 'undefined'){ return false; }
+  try{
+    const qr = qrcode(0, 'H');
+    qr.addData(text);
+    qr.make();
+    const count = qr.getModuleCount();
+    const quiet = 1;
+    const total = count + quiet * 2;
+    const moduleSize = Math.max(1, Math.floor(size / total));
+    const renderedSize = moduleSize * total;
+
+    const box = document.createElement('div');
+    box.style.position = 'relative';
+    box.style.width = renderedSize + 'px';
+    box.style.height = renderedSize + 'px';
+    box.style.background = '#ffffff';
+    box.style.margin = 'auto';
+
+    for(let r = 0; r < total; r++){
+      const mr = r - quiet;
+      for(let c = 0; c < total; c++){
+        const mc = c - quiet;
+        const dark = (mr >= 0 && mr < count && mc >= 0 && mc < count) && qr.isDark(mr, mc);
+        if(!dark) continue;
+        const cell = document.createElement('div');
+        cell.style.position = 'absolute';
+        cell.style.left = (c * moduleSize) + 'px';
+        cell.style.top = (r * moduleSize) + 'px';
+        cell.style.width = moduleSize + 'px';
+        cell.style.height = moduleSize + 'px';
+        cell.style.background = colorHex;
+        box.appendChild(cell);
+      }
+    }
+    slot.appendChild(box);
+    return true;
+  }catch(e){
+    slot.innerHTML = '';
+    return false;
+  }
+}
+
+const sanitizeFileName = s => String(s || 'Customer').trim().replace(/[^a-zA-Z0-9\-_ ]/g, '').replace(/\s+/g, '-') || 'Customer';
+
+function triggerDownload(blob, fileName){
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = fileName; a.style.display = 'none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function withTimeout(promise, ms, message){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message || 'Timed out.')), ms))
+  ]);
+}
+
+// Renders #imageWrap to a PNG blob. html2canvas can throw — or hand back a
+// canvas that refuses to export — when a cross-origin resource (a web
+// font, usually) doesn't load cleanly; this retries once with looser,
+// tainting-tolerant options and is time-boxed throughout so a stalled
+// render can never hang the Save / WA buttons indefinitely.
+// Fits the natural-size render into a fixed 9:16 frame — scaled down
+// (never up, so text stays crisp) to whichever dimension is tighter, then
+// centred over a plain white background. This is a "contain" fit: the
+// bill is never cropped and never stretched/distorted, it's just placed
+// inside a consistently-shaped canvas suitable for WhatsApp Status/social
+// sharing. Short bills get letterboxed; exceptionally tall bills simply
+// scale down further rather than losing any content.
+function fitTo9x16(sourceCanvas){
+  const frameW = 1080, frameH = 1920;
+  const frame = document.createElement('canvas');
+  frame.width = frameW; frame.height = frameH;
+  const ctx = frame.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, frameW, frameH);
+  const scale = Math.min(frameW / sourceCanvas.width, frameH / sourceCanvas.height, 1);
+  const drawW = sourceCanvas.width * scale, drawH = sourceCanvas.height * scale;
+  ctx.drawImage(sourceCanvas, (frameW - drawW) / 2, (frameH - drawH) / 2, drawW, drawH);
+  return frame;
+}
+
+async function capturePng(node){
+  logMsg('Generating bill image…', 'progress');
+  if(typeof document.fonts !== 'undefined'){
+    try{ await withTimeout(document.fonts.ready, 3000, 'font load timeout'); }catch(e){ /* proceed regardless */ }
+  }
+  const attempts = [
+    { scale: 2.5, backgroundColor: null, useCORS: true, allowTaint: false },
+    { scale: 2.5, backgroundColor: null, useCORS: true, allowTaint: true  },
+    { scale: 1.5, backgroundColor: null, useCORS: true, allowTaint: true  }
+  ];
+  let sourceCanvas = null, lastErr;
+  for(let i = 0; i < attempts.length; i++){
+    try{
+      sourceCanvas = await withTimeout(html2canvas(node, attempts[i]), 12000, 'Image rendering timed out.');
+      break;
+    }catch(e){
+      lastErr = e;
+      if(i < attempts.length - 1) logMsg(`Image render attempt ${i + 1} failed (${e.message}) — retrying…`, 'warning');
+    }
+  }
+  if(!sourceCanvas){
+    logMsg('Image generation failed after all retries: ' + lastErr.message, 'error');
+    throw lastErr || new Error('Image creation failed.');
+  }
+
+  const framed = fitTo9x16(sourceCanvas);
+  const blob = await new Promise(resolve => framed.toBlob(resolve, 'image/png'));
+  if(!blob){
+    logMsg('Image generation failed: could not encode PNG.', 'error');
+    throw new Error('Image creation failed.');
+  }
+  logMsg('Bill image generated (9:16).', 'success');
+  return blob;
+}
+
+// Session-only cache of file handles, keyed by order id, so re-saving the
+// SAME order overwrites the same on-disk file with no confirmation
+// prompt. Only Chromium-based browsers expose showSaveFilePicker; on
+// browsers without it (including Firefox, this app's primary target) it
+// always falls back to a plain download, where duplicate-name handling
+// is entirely up to the browser/OS. The first save of any order still
+// needs one picker interaction where supported — that's a hard security
+// requirement of the API — but every re-save of that same order after
+// that overwrites silently.
+const savedFileHandles = new Map();
+async function saveBlobAsFile(blob, fileName, orderKey){
+  if(window.showSaveFilePicker){
+    try{
+      let handle = savedFileHandles.get(orderKey);
+      if(handle){
+        const perm = await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'denied');
+        if(perm === 'granted'){
+          const writable = await handle.createWritable(); // truncates the existing file — true overwrite
+          await writable.write(blob);
+          await writable.close();
+          return;
+        }
+      }
+      handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: 'PNG image', accept: { 'image/png': ['.png'] } }]
+      });
+      savedFileHandles.set(orderKey, handle);
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    }catch(e){ /* unsupported, blocked, or cancelled — fall back to a normal download below */ }
+  }
+  triggerDownload(blob, fileName);
+}
+
+function validateForSend(data){
+  if(!data.rows.length){ setMsg('Please add at least one item.', true); focusField('desc_row_1'); return false; }
+  if(data.orderAmountVal < 1){ setMsg('Order amount must be at least ₹1.', true); focusField('desc_row_1'); return false; }
+  if(data.paymentAllocations.some(a => a.receiver === null)){
+    setMsg('Select payment methods for all lines.', true);
+    const idx = paymentRows.findIndex(r => r.receiverIdx === null);
+    focusField(idx >= 0 ? `payMethodBtn_${idx}` : 'paymentRowsContainer');
+    return false;
+  }
+  const diff = data.orderAmountVal - Math.round(data.totalAllocated);
+  if(diff !== 0){
+    setMsg(`Payment allocation mismatch (${inr(diff)}).`, true);
+    focusField(`payAmountInput_${Math.max(paymentRows.length - 1, 0)}`);
+    return false;
+  }
+  $('formMsg').textContent = '';
+  return true;
+}
+
+function requirePhone(data){
+  const phone = normalizePhone(data.custPhone);
+  if(!phone){
+    setMsg('Please enter a valid mobile number.', true);
+    focusField('custPhone');
+    return null;
+  }
+  return phone;
+}
+
+// ---- Action button label choreography ----
+// Each of the three action buttons shows its current status as its own
+// label instead of a fixed caption. Save Bill's "Saved" state persists
+// until the form is edited again (see markFormDirty, called from
+// scheduleUpdate); WA Pay / WA Image reset themselves the moment their
+// own flow finishes, since "Open WA" is a one-shot action, not a status
+// that should linger.
+const ACTION_DEFAULTS = {
+  btnSave:  { icon: '💾', text: 'Save' },
+  btnPay:   { icon: '💸', text: 'WA Pay' },
+  btnImage: { icon: '🖼️', text: 'WA Chat' }
+};
+function setActionLabel(btnId, icon, text){
+  const btn = $(btnId);
+  if(btn) btn.innerHTML = `<span class="ic">${icon}</span><span class="lbl">${text}</span>`;
+}
+function resetActionLabel(btnId){
+  const d = ACTION_DEFAULTS[btnId];
+  if(d) setActionLabel(btnId, d.icon, d.text);
+}
+function markFormDirty(){
+  isDirty = true;
+  const btn = $('btnSave');
+  if(btn && btn.dataset.state === 'done'){
+    btn.dataset.state = 'idle';
+    resetActionLabel('btnSave');
+  }
+}
+
+// Shared by WA Pay and WA Image: save the bill, save the receipt image,
+// then hand off to a caller-supplied step that builds the WhatsApp URL.
+//
+// Two things this specifically guards against:
+// 1. Popup blocking — window.open() only reliably escapes the popup
+//    blocker when called synchronously inside the click handler. Once we
+//    go through any await (image render, the save, the pause before
+//    opening), a browser can silently block a *new* window.open() call.
+//    So we open a blank tab synchronously right here, before any await,
+//    and just navigate that same tab once the WhatsApp URL is ready —
+//    navigating an already-open tab is never blocked, however long the
+//    async work in between takes.
+// 2. Redundant re-saving — if this exact bill was already saved and
+//    nothing has changed since (isDirty is false), we skip straight to
+//    opening WhatsApp instead of re-saving the bill and re-rendering /
+//    re-downloading the image.
+async function runBillAndImageFlow(btnId, buildWaUrl){
+  // Cheap synchronous guard first: updateEditorSummary keeps this button's
+  // disabled state current on every keystroke, so an obviously-invalid
+  // form is caught here — before any tab is opened — instead of flashing
+  // a blank tab that immediately has to be closed again.
+  if($(btnId).disabled) return;
+  // Connection-sensitive guard: WhatsApp genuinely can't send without a
+  // network, so fail fast with a clear message instead of opening (and
+  // then having to close) a tab that can never actually go anywhere.
+  if(!navigator.onLine){
+    setMsg('Offline — connect to the internet to send via WhatsApp.', true);
+    return;
+  }
+
+  const btn = $(btnId);
+  const waWindow = window.open('', '_blank'); // reserved now, navigated later
+  try{
+    const data = await renderOrderImage();
+    if(!validateForSend(data)){ if(waWindow) waWindow.close(); return; }
+    const phone = requirePhone(data); if(!phone){ if(waWindow) waWindow.close(); return; }
+
+    btn.disabled = true; btn.dataset.state = 'busy';
+
+    if(isDirty || !currentOrderId){
+      setActionLabel(btnId, '⏳', 'Saving bill');
+      await persistOrderRecord(data); // local save is instant; cloud sync runs in the background
+      isDirty = false;
+
+      setActionLabel(btnId, '⏳', 'Saving image');
+      try{
+        const blob = await capturePng($('imageWrap'));
+        const fileName = `${data.orderNo}-${sanitizeFileName(data.custName)}.png`;
+        await saveBlobAsFile(blob, fileName, currentOrderId);
+        setMsg('Saved: ' + fileName + ' — opening WhatsApp…', false);
+      }catch(e){
+        // The bill record is already saved above — a flaky image render
+        // shouldn't also block sending the WhatsApp message.
+        setMsg('Bill saved, but the image could not be created (' + e.message + ') — opening WhatsApp anyway…', true);
+      }
+      setActionLabel(btnId, '📲', 'Open WA');
+    } else {
+      setActionLabel(btnId, '📲', 'Open WA');
+      setMsg('Already saved — opening WhatsApp…', false);
+    }
+
+    const url = buildWaUrl(data, phone);
+    // Navigating the reserved tab is never blocked, however long the async
+    // work above took. If that tab is gone (some mobile browsers reclaim
+    // long-idle background tabs), navigate the current page instead of
+    // risking a second window.open() call, which — outside the original
+    // click gesture — is the case popup blockers actually target.
+    if(waWindow && !waWindow.closed) waWindow.location.href = url;
+    else window.location.href = url;
+  }catch(e){
+    if(waWindow && !waWindow.closed) waWindow.close();
+    setMsg('Error: ' + e.message, true);
+  }
+  btn.disabled = false; btn.dataset.state = 'idle';
+  resetActionLabel(btnId);
+}
+
+async function sendPayment(){
+  await runBillAndImageFlow('btnPay', (data, phone) => {
+    const nonCash = data.paymentAllocations.filter(a => a.receiver && a.receiver.upi);
+    let message;
+    if(!nonCash.length){
+      message = `Hello ${data.custName}, your order ${data.orderNo} amount is ${inr(data.orderAmountVal)} — payable by cash. Thank you!`;
+    } else if(nonCash.length === 1){
+      message = renderTemplate(CONFIG.paymentMessageTemplate, { custName: data.custName, orderNo: data.orderNo, amount: inr(data.orderAmountVal), upiLink: buildUpiUrlFor(nonCash[0].receiver, nonCash[0].amount, data.custName), upiPa: nonCash[0].receiver.upi, upiName: nonCash[0].receiver.name, companyName: CONFIG.company.name });
+    } else {
+      message = `Hello ${data.custName}, your order ${data.orderNo} amount is ${inr(data.orderAmountVal)}, split across:\n${nonCash.map(a => `- ${a.receiver.name}: ${inr(a.amount)}`).join('\n')}\nThank you!`;
+    }
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  });
+}
+
+// WA Image button: save the bill (cloud + local), save the image, then
+// open the customer's WhatsApp chat so the image can be attached manually.
+async function saveAndSendImage(){
+  await runBillAndImageFlow('btnImage', (data, phone) => `https://wa.me/${phone}`);
+}
+
+// ===================== Cloud sync (Firebase Firestore) =====================
+// currentOrderId identifies the Firestore document for the order on screen.
+// It's set fresh for a new order, and reused when an existing order is
+// loaded — so Save Order updates that same record instead of duplicating it.
+//
+// Local-first caching: both the orders list and the customer suggestions
+// are backed by a localStorage mirror. Reads come from that mirror
+// instantly (no network wait); a background Firestore fetch then merges
+// in anything newer and re-renders/persists. Writes (save/upsert) update
+// the local mirror immediately, then sync to Firestore best-effort — so
+// the UI never has to wait on the network to feel correct.
+let currentOrderId = null;
+let isDirty = true; // true = current form doesn't match a saved bill yet
+let lastValidityReason = null; // dedupes the live validation log in renderOrderImage()
+
+// ── View mode / Edit mode ──
+// Two states drive which pair of buttons occupies slots 3 & 4:
+//   view mode (uiMode='view'): looking at a saved record, read-only.
+//     Slots show New + Edit.
+//   edit mode (uiMode='edit'): actively creating or changing something
+//     (new order, or a loaded one after tapping Edit). Slots show
+//     Discard + Save. This is also the default state on a fresh page
+//     load / after "New" — you're always "composing" until you Save or
+//     Discard back to view mode.
+// editSnapshot is set only when edit mode was entered via "Edit" on an
+// existing record — that's what tells Discard whether to restore that
+// record's data or simply clear back to a blank form.
+let uiMode = 'edit';
+let isLocked = false; // true only while genuinely viewing a saved record read-only
+let editSnapshot = null;
+
+function setUiMode(mode){
+  uiMode = mode;
+  const viewing = mode === 'view';
+  $('btnReset').classList.toggle('hidden', !viewing);
+  $('btnEditLock').classList.toggle('hidden', !viewing);
+  $('btnDiscard').classList.toggle('hidden', viewing);
+  $('btnSave').classList.toggle('hidden', viewing);
+}
+
+function lockEntries(){
+  isLocked = true;
+  const overlay = $('editorLockOverlay');
+  if(overlay) overlay.style.display = 'block';
+  $('btnSave').disabled = true;
+}
+function unlockEntries(){
+  isLocked = false;
+  const overlay = $('editorLockOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+function captureEditSnapshot(){
+  const rows = [];
+  document.querySelectorAll('[id^="desc_row_"]').forEach(el => {
+    const sno = el.id.split('_').pop();
+    rows.push({ sno, desc: el.value, qty: $(`qty_row_${sno}`)?.value || '', free: $(`free_row_${sno}`)?.value || '', rate: $(`rate_row_${sno}`)?.value || '' });
+  });
+  return {
+    orderDate: $('orderDate').value,
+    custName: $('custName').value,
+    custPhone: $('custPhone').value,
+    discountOp: $('discountOp').dataset.op,
+    discountLabel: $('discountLabel').value,
+    discountVal: $('discountVal').value,
+    rows,
+    paymentRows: JSON.parse(JSON.stringify(paymentRows))
+  };
+}
+function restoreEditSnapshot(snap){
+  if(!snap) return;
+  $('orderDate').value = snap.orderDate;
+  $('custName').value = snap.custName;
+  $('custPhone').value = snap.custPhone; onPhoneInput();
+  $('discountOp').dataset.op = snap.discountOp; $('discountOp').textContent = snap.discountOp === '+' ? '+' : '−';
+  $('discountLabel').value = snap.discountLabel;
+  $('discountVal').value = snap.discountVal;
+  snap.rows.forEach(r => {
+    if($(`desc_row_${r.sno}`)) $(`desc_row_${r.sno}`).value = r.desc;
+    if($(`qty_row_${r.sno}`)) $(`qty_row_${r.sno}`).value = r.qty;
+    if($(`free_row_${r.sno}`)) $(`free_row_${r.sno}`).value = r.free;
+    if($(`rate_row_${r.sno}`)) $(`rate_row_${r.sno}`).value = r.rate;
+  });
+  paymentRows = snap.paymentRows;
+  renderPaymentRows();
+  scheduleUpdate();
+}
+
+// Shared field-clearing routine — used both by "New" (from view mode)
+// and by "Discard" of a brand-new, never-saved entry.
+function clearFormToBlank(){
+  currentOrderId = null;
+  $('custName').value = ''; $('custPhone').value = '';
+  $('phoneHint').textContent = 'Optional — required only to send on WhatsApp';
+  $('phoneHint').className = 'field-hint';
+  paymentRows = [{ receiverIdx: 0, amount: null }];
+  lastOrderAmountVal = 0;
+
+  randomizeAppreciation();
+  applyRandomTheme();
+
+  renderPaymentRows();
+  setDefaultDate();
+  orderNoManual = false;
+  $('orderNo').value = deriveOrderNo($('orderDate').value);
+  $('discountVal').value = 0; $('discountLabel').value = ''; $('discountLabel').placeholder = 'Discount';
+  $('discountOp').dataset.op = '-'; $('discountOp').textContent = '−';
+  buildRows();
+  scheduleUpdate();
+  setTimeout(() => { const first = document.querySelector('#itemsBody tr'); if(first) openItemModal(first); }, 150);
+}
+
+// ---- View mode → Edit mode ----
+function clickNew(){
+  // Only reachable from view mode, where there's nothing unsaved to lose.
+  editSnapshot = null;
+  clearFormToBlank();
+  unlockEntries();
+  setUiMode('edit');
+  setMsg('New order started.', false);
+}
+function clickEdit(){
+  editSnapshot = captureEditSnapshot();
+  unlockEntries();
+  $('btnSave').disabled = true; // nothing changed yet — re-enables the instant something is
+  setUiMode('edit');
+  setMsg('Editing — make your changes, then Save (or Discard to undo).', false);
+}
+
+// ---- Edit mode → View mode ----
+function clickDiscard(){
+  if(editSnapshot){
+    restoreEditSnapshot(editSnapshot);
+    editSnapshot = null;
+    lockEntries();
+    setMsg('Changes discarded — back to the saved version.', false);
+  } else {
+    clearFormToBlank();
+    unlockEntries();
+    setMsg('Discarded — starting blank.', false);
+  }
+  setUiMode('view');
+}
+const LS_ORDERS_KEY = 'sf_orders_cache_v1';
+const LS_CUSTOMERS_KEY = 'sf_customers_cache_v1';
+
+function readLocalCache(key){
+  try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
+}
+function writeLocalCache(key, list, cap){
+  try{ localStorage.setItem(key, JSON.stringify(list.slice(0, cap))); }catch(e){ /* storage full/unavailable — cloud copy is unaffected */ }
+}
+function mergeById(localList, freshList){
+  const map = new Map();
+  localList.forEach(x => map.set(x.id, x));
+  freshList.forEach(x => map.set(x.id, x)); // freshly-fetched cloud data wins on conflict
+  return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+let ordersCache = readLocalCache(LS_ORDERS_KEY);
+let customerCache = readLocalCache(LS_CUSTOMERS_KEY);
+
+function newOrderId(){
+  const d = ($('orderDate').value || '').replace(/-/g, '') || 'nodate';
+  const no = $('orderNo').value || '0000';
+  return `${d}-${no}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function fbReady(){ return !!(window.FB && window.FB.db); }
+
+async function saveOrderToCloud(id, record){
+  if(!fbReady()) throw new Error('Cloud sync is still starting up — try again in a moment.');
+  const { db, doc, setDoc } = window.FB;
+  await setDoc(doc(db, 'orders', id), record);
+}
+
+async function deleteOrderFromCloud(id){
+  const { db, doc, deleteDoc } = window.FB;
+  await deleteDoc(doc(db, 'orders', id));
+}
+
+async function fetchOrdersList(){
+  const { db, collection, getDocs, query, orderBy, limit } = window.FB;
+  const q = query(collection(db, 'orders'), orderBy('updatedAt', 'desc'), limit(200));
+  const snap = await getDocs(q);
+  const out = [];
+  snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+  return out;
+}
+
+// Background refresh: merges Firestore's orders list into the local mirror
+// and persists it. Errors are swallowed — callers just keep using
+// whatever's already in the local mirror.
+async function refreshOrdersCache(){
+  if(!fbReady()) return;
+  try{
+    logMsg('Syncing saved bills from cloud…', 'progress');
+    const cloud = await fetchOrdersList();
+    ordersCache = mergeById(ordersCache, cloud);
+    writeLocalCache(LS_ORDERS_KEY, ordersCache, 200);
+    logMsg(`Synced ${ordersCache.length} saved bill(s).`, 'success');
+  }catch(e){ logMsg('Could not sync saved bills — using local cache.', 'warning'); }
+}
+window.addEventListener('firebase-ready', refreshOrdersCache);
+
+// Builds the order record and writes it into the local mirror immediately
+// (synchronous — no network involved). The Firestore write is fired
+// afterward but NOT awaited, so callers (Save Bill, WA Pay, WA Image)
+// never sit blocked on the network — the local save is what makes them
+// responsive; the cloud copy catches up in the background, and Firestore's
+// own offline queue retries it automatically once the connection is back.
+async function persistOrderRecord(data){
+  if(!currentOrderId) currentOrderId = newOrderId();
+  const record = {
+    orderNo: data.orderNo,
+    dateISO: $('orderDate').value,
+    custName: data.custName,
+    custPhone: data.custPhone,
+    rows: data.rows.map(r => ({ desc: r.desc, qty: r.qty, rate: r.rate, freeVal: r.freeVal || 0 })),
+    discountLabelText: data.discountLabelText,
+    discountOp: data.discountOp,
+    discountVal: data.discountVal,
+    paymentAllocations: data.paymentAllocations.map(a => ({
+      receiverIdx: a.receiver ? CONFIG.receivers.indexOf(a.receiver) : null,
+      amount: a.amount
+    })),
+    orderAmountVal: data.orderAmountVal,
+    updatedAt: Date.now()
+  };
+
+  const localRec = { id: currentOrderId, ...record };
+  const oi = ordersCache.findIndex(o => o.id === currentOrderId);
+  if(oi >= 0) ordersCache[oi] = localRec; else ordersCache.unshift(localRec);
+  writeLocalCache(LS_ORDERS_KEY, ordersCache, 200);
+  upsertCustomerLocal(data.custName, data.custPhone);
+
+  const orderId = currentOrderId;
+  logMsg('Saved locally; syncing bill to cloud…', 'progress');
+  saveOrderToCloud(orderId, record)
+    .then(() => { logMsg('Bill synced to cloud.', 'success'); return upsertCustomerCloud(data.custName, data.custPhone); })
+    .catch(() => { logMsg('Cloud sync failed — stays queued locally until back online.', 'warning'); });
+
+  return orderId;
+}
+
+// Local half of the customer-suggestion cache: instant, no network.
+function upsertCustomerLocal(name, phone){
+  const cleanName = (name || '').trim(), cleanPhone = (phone || '').trim();
+  if(!cleanName && !cleanPhone) return null;
+  const id = cleanPhone || sanitizeFileName(cleanName);
+  const rec = { id, name: cleanName, phone: cleanPhone, updatedAt: Date.now() };
+  const idx = customerCache.findIndex(c => c.id === id);
+  if(idx >= 0) customerCache[idx] = rec; else customerCache.unshift(rec);
+  writeLocalCache(LS_CUSTOMERS_KEY, customerCache, 500);
+  return rec;
+}
+
+// Cloud half: fire-and-forget from persistOrderRecord, so it never blocks
+// the UI. Safe to call on its own too (e.g. a future "sync now" action).
+async function upsertCustomerCloud(name, phone){
+  if(!fbReady()) return;
+  const cleanName = (name || '').trim(), cleanPhone = (phone || '').trim();
+  if(!cleanName && !cleanPhone) return;
+  const id = cleanPhone || sanitizeFileName(cleanName);
+  try{
+    const { db, doc, setDoc } = window.FB;
+    await setDoc(doc(db, 'customers', id), { name: cleanName, phone: cleanPhone, updatedAt: Date.now() }, { merge: true });
+  }catch(e){ /* offline — local copy already saved, will reconcile on next successful fetch */ }
+}
+
+// Background refresh: merges Firestore's customer list into the local
+// mirror and persists it, without blocking anything the user is doing.
+async function refreshCustomerCache(){
+  if(!fbReady()) return;
+  try{
+    const { db, collection, getDocs, query, orderBy, limit } = window.FB;
+    const q = query(collection(db, 'customers'), orderBy('updatedAt', 'desc'), limit(500));
+    const snap = await getDocs(q);
+    const cloud = [];
+    snap.forEach(d => cloud.push({ id: d.id, ...d.data() }));
+    customerCache = mergeById(customerCache, cloud);
+    writeLocalCache(LS_CUSTOMERS_KEY, customerCache, 500);
+  }catch(e){ /* offline on first load — local cache still works, will retry once online */ }
+}
+window.addEventListener('firebase-ready', refreshCustomerCache);
+window.addEventListener('firebase-ready', () => {
+  Object.keys(CONFIG_ARRAY).forEach(kind => watchConfigDoc(kind, CONFIG_ARRAY[kind].set));
+  watchSettingsDoc();
+  logMsg('Cloud connected.', 'success');
+});
+
+// ---- Customer name/phone suggestions ----
+function showCustomerSuggestions(source){
+  const box = $('custSuggestBox');
+  const nameVal = $('custName').value.trim().toLowerCase();
+  const phoneVal = $('custPhone').value.trim();
+  const q = source === 'name' ? nameVal : phoneVal;
+  if(q.length < 2){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  const filtered = customerCache.filter(c => source === 'name'
+    ? (c.name || '').toLowerCase().includes(nameVal)
+    : (c.phone || '').includes(phoneVal)
+  ).slice(0, 6);
+  if(!filtered.length){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = filtered.map(c =>
+    `<button type="button" class="suggest-item" onmousedown="event.preventDefault(); selectCustomerSuggestion('${c.id}')">${esc(c.name || '(no name)')} — ${esc(c.phone || '—')}</button>`
+  ).join('');
+  box.style.display = 'block';
+}
+
+function hideCustomerSuggestionsDelayed(){
+  setTimeout(() => { const box = $('custSuggestBox'); if(box) box.style.display = 'none'; }, 150);
+}
+
+function selectCustomerSuggestion(id){
+  const c = customerCache.find(x => x.id === id);
+  if(!c) return;
+  $('custName').value = c.name || '';
+  $('custPhone').value = c.phone || '';
+  onPhoneInput();
+  $('custSuggestBox').style.display = 'none';
+  scheduleUpdate();
+  focusField('desc_row_1');
+}
+
+// ---- Order number field → previous-orders popup ----
+async function openOrderHistoryModal(){
+  toggleModal('orderHistoryModal', true);
+  $('orderHistorySearch').value = '';
+  // Instant render from the local mirror — no network wait.
+  renderOrderHistoryList(ordersCache);
+  if(!ordersCache.length){
+    $('orderHistoryList').innerHTML = '<div class="field-hint">Loading…</div>';
+  }
+  setTimeout(() => $('orderHistorySearch').focus(), 50);
+  // Then grow/refresh the list with whatever Firestore has, in the background.
+  await refreshOrdersCache();
+  if(ordersCache.length){
+    renderOrderHistoryList(filterOrderHistory($('orderHistorySearch').value));
+  } else {
+    $('orderHistoryList').innerHTML = '<div class="field-hint warn">No saved orders yet (or offline). You can still enter a number below to start a new order.</div>';
+  }
+}
+
+// '<' / '>' arrows beside the order number: step through saved bills in
+// order of last modification (ordersCache is kept sorted newest-first).
+// '<' moves to an older bill, '>' moves to a newer one; both wrap around.
+function cycleOrder(step){
+  if(!ordersCache.length){
+    setMsg('No saved bills to cycle through yet.', false);
+    return;
+  }
+  const curIdx = ordersCache.findIndex(o => o.id === currentOrderId);
+  if(curIdx === -1){ loadOrderFromCloud(ordersCache[0].id); return; }
+  const nextIdx = (curIdx + step + ordersCache.length) % ordersCache.length;
+  loadOrderFromCloud(ordersCache[nextIdx].id);
+}
+
+function ddMmm(iso){
+  if(!iso) return '------';
+  const d = new Date(iso + 'T00:00:00');
+  if(isNaN(d)) return '------';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return pad(d.getDate()) + '-' + months[d.getMonth()];
+}
+
+function filterOrderHistory(text){
+  const t = (text || '').trim().toLowerCase();
+  if(!t) return ordersCache;
+  return ordersCache.filter(o =>
+    (o.custName || '').toLowerCase().includes(t) ||
+    (o.custPhone || '').includes(t) ||
+    (o.orderNo || '').includes(t)
+  );
+}
+
+function renderOrderHistoryList(list){
+  const listEl = $('orderHistoryList');
+  listEl.innerHTML = '';
+  if(!list.length){ listEl.innerHTML = '<div class="field-hint">No matching orders.</div>'; return; }
+  list.forEach(o => {
+    const firstItem = (o.rows && o.rows[0] && o.rows[0].desc) || '—';
+    const amt = String(Math.round(o.orderAmountVal || 0)).padStart(7, ' ');
+    const row = document.createElement('div');
+    row.className = 'order-hist-row';
+    row.innerHTML = `
+      <button type="button" class="order-hist-btn" onclick="loadOrderFromCloud('${o.id}')">
+        <span class="ohr-date">${ddMmm(o.dateISO)}</span>
+        <span class="ohr-name">${esc(o.custName || '')}</span>
+        <span class="ohr-item">${esc(firstItem)}</span>
+        <span class="ohr-amt">${esc(amt)}</span>
+      </button>
+      <button type="button" class="order-hist-del" title="Delete order">✕</button>`;
+    row.querySelector('.order-hist-del').onclick = () => confirmDeleteOrder(o.id);
+    listEl.appendChild(row);
+  });
+}
+
+async function confirmDeleteOrder(id){
+  if(!confirm('Delete this saved order? This cannot be undone.')) return;
+  try{
+    await deleteOrderFromCloud(id);
+    ordersCache = ordersCache.filter(o => o.id !== id);
+    writeLocalCache(LS_ORDERS_KEY, ordersCache, 200);
+    renderOrderHistoryList(filterOrderHistory($('orderHistorySearch').value));
+  }catch(e){
+    alert('Could not delete order: ' + e.message);
+  }
+}
+
+function loadOrderFromCloud(id){
+  const o = ordersCache.find(x => x.id === id);
+  if(!o) return;
+  toggleModal('orderHistoryModal', false);
+  currentOrderId = id;
+  orderNoManual = true;
+
+  if(o.dateISO) $('orderDate').value = o.dateISO;
+  $('orderNo').value = o.orderNo || '';
+  $('custName').value = o.custName || '';
+  $('custPhone').value = o.custPhone || '';
+  onPhoneInput();
+
+  const op = o.discountOp === '+' ? '+' : '-';
+  $('discountOp').dataset.op = op; $('discountOp').textContent = op === '+' ? '+' : '−';
+  $('discountLabel').placeholder = op === '+' ? 'Add' : 'Discount';
+  $('discountLabel').value = (o.discountLabelText && o.discountLabelText !== 'Discount' && o.discountLabelText !== 'Add') ? o.discountLabelText : '';
+  $('discountVal').value = o.discountVal || 0;
+
+  const tbody = $('itemsBody');
+  tbody.innerHTML = '';
+  const rowsData = (o.rows && o.rows.length) ? o.rows : [];
+  const rowTarget = Math.max(rowsData.length, CONFIG.rowCount);
+  for(let i = 1; i <= rowTarget; i++) tbody.appendChild(createRowElement(i));
+  rowsData.forEach((r, i) => {
+    const sno = i + 1;
+    $(`desc_row_${sno}`).value = r.desc || '';
+    $(`qty_row_${sno}`).value = r.qty || '';
+    $(`free_row_${sno}`).value = r.freeVal || '';
+    $(`rate_row_${sno}`).value = r.rate || '';
+    calcRow($(`rate_row_${sno}`), false);
+  });
+
+  paymentRows = (o.paymentAllocations && o.paymentAllocations.length)
+    ? o.paymentAllocations.map(a => ({ receiverIdx: a.receiverIdx != null ? a.receiverIdx : 0, amount: a.amount || null }))
+    : [{ receiverIdx: 0, amount: null }];
+  lastOrderAmountVal = o.orderAmountVal || 0;
+  renderPaymentRows();
+
+  scheduleUpdate();
+  isDirty = false; // this content is exactly what's already saved for this order
+  editSnapshot = null;
+  lockEntries();
+  setUiMode('view');
+  setMsg('Loaded order ' + (o.orderNo || '') + ' — locked; tap Edit to change it.', false);
+}
+// ================== end cloud sync ==================
+
+async function saveOrder(){
+  if($('btnSave').disabled) return;
+  const btn = $('btnSave');
+  try{
+    const data = await renderOrderImage();
+    if(!validateForSend(data)) return;
+    btn.disabled = true; btn.dataset.state = 'busy';
+    setActionLabel('btnSave', '⏳', 'Saving');
+
+    await persistOrderRecord(data); // local save is instant; cloud sync runs in the background
+    isDirty = false;
+
+    setActionLabel('btnSave', '⏳', 'Saving image');
+    const fileName = `${data.orderNo}-${sanitizeFileName(data.custName)}.png`;
+    try{
+      const blob = await capturePng($('imageWrap'));
+      await saveBlobAsFile(blob, fileName, currentOrderId);
+      setMsg('Saved: ' + fileName + ' — syncing to cloud in the background.', false);
+    }catch(e){
+      // The bill record is already saved — surface the image failure but
+      // don't leave the button stuck as if nothing was saved at all.
+      setMsg('Bill saved, but the image could not be created: ' + e.message, true);
+    }
+
+    // Saved successfully: this is now "the current record" — return to
+    // view mode (locked, showing New/Edit) rather than staying in the
+    // Discard/Save pair with nothing left to change.
+    btn.dataset.state = 'done';
+    resetActionLabel('btnSave');
+    btn.disabled = false;
+    editSnapshot = null;
+    lockEntries();
+    setUiMode('view');
+    return;
+  }catch(e){
+    setMsg('Error: ' + e.message, true);
+  }
+  btn.disabled = false; btn.dataset.state = 'idle';
+  resetActionLabel('btnSave');
+}
+
+function toggleModal(id, show){ $(id).style.display = show ? 'flex' : 'none'; }
+
+// ── Connection-sensitive action bar ──
+// Pay/Image genuinely need a network to reach WhatsApp; Save doesn't
+// (it's local-first). Rather than let them fail silently, dim them and
+// say so the moment the browser reports offline, and clear that the
+// moment it's back — this runs alongside, not instead of, the normal
+// validity-based enabling in renderOrderImage().
+function updateConnectivityUI(){
+  const offline = !navigator.onLine;
+  ['btnPay', 'btnImage'].forEach(id => {
+    const b = $(id);
+    if(!b) return;
+    b.classList.toggle('net-disabled', offline);
+    b.title = offline ? 'Needs an internet connection to send via WhatsApp' : '';
+  });
+  if(offline) setMsg('Offline — Save still works locally; WhatsApp actions need a connection.', true);
+}
+window.addEventListener('online', updateConnectivityUI);
+window.addEventListener('offline', updateConnectivityUI);
+
+loadConfigFromLocal();
+randomizeAppreciation(); 
+applyRandomTheme();
+setDefaultDate();
+$('orderNo').value = deriveOrderNo($('orderDate').value);
+renderPaymentRows();
+buildRows();
+renderOrderImage();
+updateConnectivityUI();
+unlockEntries();
+setUiMode('edit'); // a fresh page load starts composing a new bill: Discard + Save
+setInterval(refreshOrderNo, 60000);
+
+setTimeout(() => { const first = document.querySelector('#itemsBody tr'); if(first) openItemModal(first); }, 250);
+</script>
+</body>
+</html>
