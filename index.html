@@ -59,11 +59,34 @@
      of the way; tapping/focusing it expands it into a scrollable history
      panel with blue text, and it shrinks back the moment focus leaves. */
   .app-log{
-    position:fixed; left:0; right:0; bottom:0; z-index:999; box-sizing:border-box;
+    position:fixed; left:0; right:0; bottom:64px; z-index:998; box-sizing:border-box;
     background:#16262A; color:#cfe0e0; font-family:'Roboto Mono',monospace; font-size:11px;
-    line-height:1.45; padding:4px 8px; height:40px; overflow:hidden; outline:none; cursor:pointer;
-    transition:height 0.18s ease; -webkit-overflow-scrolling:touch;
+    line-height:1.45; padding:4px 8px; max-height:30vh; overflow-y:auto; outline:none; cursor:pointer;
+    -webkit-overflow-scrolling:touch; border-top:1px solid #2a3d42;
   }
+  .app-log .log-line{white-space:pre-wrap; word-break:break-word; margin-bottom:2px;}
+  .app-log .log-line.err{color:#FF8A80;}
+  .app-log .log-line.success{color:#4CAF50;}
+  .app-log .log-line.info{color:#4DA6FF;}
+  .app-log .log-line.warning{color:#FFC107;}
+  
+  .action-bar{
+    position:fixed; left:0; right:0; bottom:0; z-index:999;
+    background:var(--primary); padding:8px;
+    display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+    box-shadow:0 -2px 8px rgba(0,0,0,0.15);
+  }
+  .action-bar button{
+    flex:1; min-width:80px; max-width:140px;
+    padding:10px 12px; border:none; border-radius:var(--radius);
+    font-weight:800; font-size:13px; cursor:pointer;
+    background:var(--white); color:var(--primary);
+    box-shadow:0 2px 4px rgba(0,0,0,0.2);
+  }
+  .action-bar button:active{transform:scale(0.95);}
+  .action-bar button.primary{background:var(--accent); color:#000;}
+  .action-bar button.danger{background:var(--danger); color:#fff;}
+
   .app-log:focus{ height:42vh; overflow-y:auto; color:#4DA6FF; cursor:auto; }
   .app-log .log-line{white-space:pre-wrap; word-break:break-word;}
   .app-log .log-line.err{color:#FF8A80;}
@@ -184,10 +207,13 @@
   .payment-qr-preview .qr-block{text-align:center; background:var(--primary-light); border-radius:var(--radius); padding:3px;}
 
   .image-wrap{
-    width:100%; margin-top:0; border-radius:22px;
+    width:100%; aspect-ratio:9/16; max-height:calc(100vh - 280px);
+    margin-top:0; border-radius:22px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.10), 0 6px 14px rgba(0,0,0,0.10), 0 16px 32px rgba(0,0,0,0.08);
     overflow:hidden; background:#ffffff; padding:2px; box-sizing:border-box;
+    display:flex; flex-direction:column;
   }
+  .image-wrap #imageWrap{flex:1; display:flex; flex-direction:column; width:100%;}
   #orderImage{
     width:100%; background:#fff; font-family:'Inter',sans-serif; color:var(--ink); 
     border:none; outline:none; margin:0; padding:0; overflow:hidden; box-sizing:border-box;
@@ -469,6 +495,14 @@
   button.finish-btn{background:var(--accent); color:#1a1200; margin-top:4px; font-size:15px;}
   #qtyCustomInput{width:100%; margin-bottom:4px;}
   .qty-grid button.others-btn{border-style:dashed; font-style:italic; font-size:12px; padding:2px 1px; background:#fff !important; color:var(--ink) !important; border-color:var(--primary) !important;}
+
+  /* Right-align all numeric inputs */
+  input.qty, input.free-qty, input.rate, input.amount,
+  .field-row input[inputmode="numeric"], .field-row input[inputmode="decimal"]{
+    text-align:right;
+    font-family:'Roboto Mono',monospace;
+  }
+
 </style>
 </head>
 <body>
@@ -505,8 +539,10 @@
         <td id="footerItemCount" style="text-align:center; padding:3px 1px;">0</td>
         <td style="text-align:left; padding:3px 2px;">Counts and Sub Total</td>
         <td id="footerQty" style="text-align:center;">0</td>
+        <td id="footerPlus" style="text-align:center; font-weight:900; color:var(--primary); display:none;">+</td>
         <td id="footerFree" style="text-align:center;">-</td>
-        <td id="footerRateSum" style="text-align:center;">-</td>
+        <td id="footerEquals" style="text-align:center; font-weight:900; color:var(--secondary); display:none;">=</td>
+        <td id="footerRateSum" style="text-align:center; font-weight:900;">-</td>
         <td id="footerAmt" style="text-align:right; font-family:'Roboto Mono',monospace; padding-right:4px; font-size:18px;">0</td>
       </tr>
     </tfoot>
@@ -762,7 +798,7 @@ function expandLog(){ const el = $('appLog'); if(el) el.scrollTop = el.scrollHei
 // syncs to Firestore for every other device to pick up.
 
 const CONFIG = {
-  company: { name: 'SREE FOUNDATION', address: 'Kuniyamuthur, Coimbatore' },
+  company: { name: '', address: '' },  // Loaded from cloud only - no hardcoded values
   receivers: [],   // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('receivers', ...)
   items: [],       // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('items', ...)
   upiRef: 'YELGRIS',
