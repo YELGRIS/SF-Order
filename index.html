@@ -47,50 +47,37 @@
     --shadow-color:rgba(11,94,100,0.35); --ink:#16262A; --danger:#c0392b; --white:#ffffff;
     --row-1:#FFE5B4; --row-2:#B4E7FF; --row-3:#E5FFB4; --row-4:#FFB4E5; --row-5:#F5B4FF; --row-6:#FFE5CC;
     --radius:10px;
+    --action-bar-h:34px; --log-collapsed-h:40px; --safe-b:env(safe-area-inset-bottom, 0px);
   }
   *{box-sizing:border-box;}
+  html{overflow-x:hidden;}
   body{
-    margin:0; padding:0 0 44px; background:linear-gradient(180deg,var(--primary) 0%, var(--bg-main) 38%);
+    margin:0; padding:0 0 calc(var(--action-bar-h) + var(--log-collapsed-h) + var(--safe-b) + 10px);
+    background:linear-gradient(180deg,var(--primary) 0%, var(--bg-main) 38%);
     font-family:'Inter',sans-serif; color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
-    font-size:16px;
+    font-size:16px; max-width:100vw; overflow-x:hidden;
   }
 
   /* Fixed activity log — collapsed to ~2 lines by default so it stays out
      of the way; tapping/focusing it expands it into a scrollable history
-     panel with blue text, and it shrinks back the moment focus leaves. */
+     panel with blue text, and it shrinks back the moment focus leaves.
+     Sits at the true bottom edge, so it (not the action bar) is what
+     pads out into the Android gesture-bar/home-indicator safe area. */
   .app-log{
-    position:fixed; left:0; right:0; bottom:64px; z-index:998; box-sizing:border-box;
+    position:fixed; left:0; right:0; bottom:0; z-index:999; box-sizing:border-box;
     background:#16262A; color:#cfe0e0; font-family:'Roboto Mono',monospace; font-size:11px;
-    line-height:1.45; padding:4px 8px; max-height:30vh; overflow-y:auto; outline:none; cursor:pointer;
-    -webkit-overflow-scrolling:touch; border-top:1px solid #2a3d42;
+    line-height:1.45; padding:4px 8px calc(4px + var(--safe-b)); height:calc(var(--log-collapsed-h) + var(--safe-b));
+    overflow:hidden; outline:none; cursor:pointer;
+    transition:height 0.18s ease; -webkit-overflow-scrolling:touch;
   }
-  .app-log .log-line{white-space:pre-wrap; word-break:break-word; margin-bottom:2px;}
-  .app-log .log-line.err{color:#FF8A80;}
-  .app-log .log-line.success{color:#4CAF50;}
-  .app-log .log-line.info{color:#4DA6FF;}
-  .app-log .log-line.warning{color:#FFC107;}
-  
-  .action-bar{
-    position:fixed; left:0; right:0; bottom:0; z-index:999;
-    background:var(--primary); padding:8px;
-    display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
-    box-shadow:0 -2px 8px rgba(0,0,0,0.15);
-  }
-  .action-bar button{
-    flex:1; min-width:80px; max-width:140px;
-    padding:10px 12px; border:none; border-radius:var(--radius);
-    font-weight:800; font-size:13px; cursor:pointer;
-    background:var(--white); color:var(--primary);
-    box-shadow:0 2px 4px rgba(0,0,0,0.2);
-  }
-  .action-bar button:active{transform:scale(0.95);}
-  .action-bar button.primary{background:var(--accent); color:#000;}
-  .action-bar button.danger{background:var(--danger); color:#fff;}
-
   .app-log:focus{ height:42vh; overflow-y:auto; color:#4DA6FF; cursor:auto; }
   .app-log .log-line{white-space:pre-wrap; word-break:break-word;}
-  .app-log .log-line.err{color:#FF8A80;}
-  .app-log:focus .log-line.err{color:#FF5252;}
+  .app-log .log-line.info{color:#cfe0e0;}
+  .app-log .log-line.success{color:#8CE2C0;}
+  .app-log .log-line.warning{color:#FFC868;}
+  .app-log .log-line.error{color:#FF8A80;}
+  .app-log .log-line.progress{color:#9AA6A6; font-style:italic;}
+  .app-log:focus .log-line.error{color:#FF5252;}
   
   .topbar{width:100%; display:flex; justify-content:space-between; align-items:center; gap:0; margin-bottom:0; position:relative;}
   .tb-side{display:flex; flex-direction:column; align-items:flex-start; flex:0 0 auto;}
@@ -160,7 +147,8 @@
   table.items th:nth-child(5), table.items td:nth-child(5){width:16%;}
   table.items th:nth-child(6), table.items td:nth-child(6){width:18%;}
   
-  input.desc, input.qty, input.free-qty, input.rate{width:100%; min-width:0; box-sizing:border-box; font-size:14px; padding:2px 1px; text-align:center; font-weight:800; border:1px solid rgba(255,165,0,0.3); border-radius:var(--radius); background:rgba(255,255,255,0.9); transition:all 0.2s;}
+  input.desc{width:100%; min-width:0; box-sizing:border-box; font-size:14px; padding:2px 1px; text-align:center; font-weight:800; border:1px solid rgba(255,165,0,0.3); border-radius:var(--radius); background:rgba(255,255,255,0.9); transition:all 0.2s;}
+  input.qty, input.free-qty, input.rate{width:100%; min-width:0; box-sizing:border-box; font-size:14px; padding:2px 1px; text-align:right; font-weight:800; border:1px solid rgba(255,165,0,0.3); border-radius:var(--radius); background:rgba(255,255,255,0.9); transition:all 0.2s;}
   input.desc{text-align:left; padding-left:4px; border-color:var(--accent);}
   input.qty, input.rate{border-color:var(--secondary);}
   input.free-qty{color:#1a7d3a; font-weight:900; border-radius:var(--radius); border-color:#52B788; background:rgba(229,255,180,0.4);}
@@ -207,13 +195,10 @@
   .payment-qr-preview .qr-block{text-align:center; background:var(--primary-light); border-radius:var(--radius); padding:3px;}
 
   .image-wrap{
-    width:100%; aspect-ratio:9/16; max-height:calc(100vh - 280px);
-    margin-top:0; border-radius:22px;
+    width:100%; margin-top:0; border-radius:22px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.10), 0 6px 14px rgba(0,0,0,0.10), 0 16px 32px rgba(0,0,0,0.08);
     overflow:hidden; background:#ffffff; padding:2px; box-sizing:border-box;
-    display:flex; flex-direction:column;
   }
-  .image-wrap #imageWrap{flex:1; display:flex; flex-direction:column; width:100%;}
   #orderImage{
     width:100%; background:#fff; font-family:'Inter',sans-serif; color:var(--ink); 
     border:none; outline:none; margin:0; padding:0; overflow:hidden; box-sizing:border-box;
@@ -391,7 +376,15 @@
   }
 
   .buttons-watermark{width:100%; text-align:center; font-size:22px; opacity:0.55; margin-top:0; color:#fff;}
-  .action-buttons{width:100%; display:flex; gap:6px; margin-top:2px;}
+  /* Fixed at the bottom (not in normal flow) so it's always reachable
+     without scrolling, sitting just above the log panel — never
+     overlapping it — with its own translucent scrim so content
+     scrolling underneath doesn't clash with the semi-transparent buttons. */
+  .action-buttons{
+    position:fixed; left:0; right:0; bottom:calc(var(--log-collapsed-h) + var(--safe-b)); z-index:60;
+    display:flex; gap:6px; margin:0; padding:4px 8px; box-sizing:border-box;
+    background:linear-gradient(180deg, rgba(238,247,247,0) 0%, var(--bg-main) 60%);
+  }
   /* Half the previous height: icon and label now occupy the same spot
      (label overlaid on top of the icon) instead of stacking in two rows. */
   .action-buttons button{
@@ -495,14 +488,6 @@
   button.finish-btn{background:var(--accent); color:#1a1200; margin-top:4px; font-size:15px;}
   #qtyCustomInput{width:100%; margin-bottom:4px;}
   .qty-grid button.others-btn{border-style:dashed; font-style:italic; font-size:12px; padding:2px 1px; background:#fff !important; color:var(--ink) !important; border-color:var(--primary) !important;}
-
-  /* Right-align all numeric inputs */
-  input.qty, input.free-qty, input.rate, input.amount,
-  .field-row input[inputmode="numeric"], .field-row input[inputmode="decimal"]{
-    text-align:right;
-    font-family:'Roboto Mono',monospace;
-  }
-
 </style>
 </head>
 <body>
@@ -532,17 +517,13 @@
   <div class="field-hint" id="phoneHint" style="margin-bottom:0;">Optional — required only to send on WhatsApp</div>
 
   <table class="items">
-    <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Free</th><th>Rate</th><th>Amt</th></tr></thead>
+    <thead><tr><th>#</th><th>Item</th><th colspan="3">Qty</th><th>Amt</th></tr></thead>
     <tbody id="itemsBody"></tbody>
     <tfoot>
       <tr style="background:var(--primary-light); font-weight:900; font-size:14px;">
         <td id="footerItemCount" style="text-align:center; padding:3px 1px;">0</td>
         <td style="text-align:left; padding:3px 2px;">Counts and Sub Total</td>
-        <td id="footerQty" style="text-align:center;">0</td>
-        <td id="footerPlus" style="text-align:center; font-weight:900; color:var(--primary); display:none;">+</td>
-        <td id="footerFree" style="text-align:center;">-</td>
-        <td id="footerEquals" style="text-align:center; font-weight:900; color:var(--secondary); display:none;">=</td>
-        <td id="footerRateSum" style="text-align:center; font-weight:900;">-</td>
+        <td id="footerQtyFree" colspan="3" style="text-align:center;">0</td>
         <td id="footerAmt" style="text-align:right; font-family:'Roboto Mono',monospace; padding-right:4px; font-size:18px;">0</td>
       </tr>
     </tfoot>
@@ -763,23 +744,34 @@ const $ = id => document.getElementById(id);
 // tapping/focusing the log reveals the full history even after the
 // one-line status above it has moved on to the next message.
 let logEntries = [];
-function logMsg(text, isError){
+// Level can be a legacy boolean (true='error', false='success') or one of
+// 'info' | 'success' | 'warning' | 'error' | 'progress' — lets every call
+// site distinguish what actually happened instead of just red/not-red.
+function normalizeLevel(level){
+  if(level === true) return 'error';
+  if(level === false || level == null) return 'success';
+  return level;
+}
+const LEVEL_COLOR = { info: 'var(--ink)', success: 'var(--primary)', warning: '#B4700A', error: 'var(--danger)', progress: '#666' };
+function logMsg(text, level){
+  const lvl = normalizeLevel(level);
   const d = new Date();
   const ts = [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
-  logEntries.push({ ts, text: String(text), isError: !!isError });
+  logEntries.push({ ts, text: String(text), level: lvl });
   if(logEntries.length > 300) logEntries.shift();
   renderLog();
 }
 function renderLog(){
   const el = document.getElementById('appLog');
   if(!el) return;
-  el.innerHTML = logEntries.map(e => `<div class="log-line${e.isError ? ' err' : ''}">[${e.ts}] ${esc(e.text)}</div>`).join('');
+  el.innerHTML = logEntries.map(e => `<div class="log-line ${e.level}">[${e.ts}] ${esc(e.text)}</div>`).join('');
   el.scrollTop = el.scrollHeight;
 }
-function setMsg(text, isError){
+function setMsg(text, level){
+  const lvl = normalizeLevel(level);
   const el = $('formMsg');
-  if(el){ el.style.color = isError ? 'var(--danger)' : 'var(--primary)'; el.textContent = text; }
-  if(text) logMsg(text, isError);
+  if(el){ el.style.color = LEVEL_COLOR[lvl] || LEVEL_COLOR.success; el.textContent = text; }
+  if(text) logMsg(text, lvl);
 }
 function expandLog(){ const el = $('appLog'); if(el) el.scrollTop = el.scrollHeight; }
 
@@ -797,60 +789,33 @@ function expandLog(){ const el = $('appLog'); if(el) el.scrollTop = el.scrollHei
 // how the catalogue gets built from there, and every entry made that way
 // syncs to Firestore for every other device to pick up.
 
+// No business content is embedded here. Everything below is populated by
+// loadConfigFromLocal() (local mirror) and then kept live by
+// watchSettingsDoc()/watchConfigDoc() (Firestore) — see the "Cloud +
+// local mirror" section further down. rowCount keeps a minimal numeric
+// fallback purely so buildRows() always draws at least one row before
+// settings load; it is not business data.
 const CONFIG = {
-  company: { name: '', address: '' },  // Loaded from cloud only - no hardcoded values
+  company: { name: '', address: '' },
   receivers: [],   // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('receivers', ...)
   items: [],       // populated by loadConfigFromLocal() below, then kept live by watchConfigDoc('items', ...)
-  upiRef: 'YELGRIS',
+  upiRef: '',
   rowCount: 5,
-  scanNote: {
-    en1: 'For Transfers Over ₹2,000',
-    ta1: '₹2,000-க்கு மேற்பட்ட பரிமாற்றங்களுக்கு',
-    en2: 'Forward the QR image to a nearby phone, then use payment phone to scan it. Please share a screenshot with Reference Number / Transaction ID.',
-    ta2: 'QR குறியீட்டை அருகிலுள்ள கைபேசிக்கு ஃபார்வர்டு செய்து, பின்னர் பணம் செலுத்தும் கைபேசியைப் பயன்படுத்தி அதை ஸ்கேன் செய்யவும். பிறகு, குறிப்பு எண் / பரிவர்த்தனை ஐடியுடன் ஒரு ஸ்கிரீன்ஷாட்டைப் பகிரவும்.'
-  },
-  paymentMessage: d => `Dear ${d.custName},
-Kindly arrange payment of ₹ ${d.amount}  against Order number ${d.orderNo} using the below link or UPI ID
-
-UPI Payment Link: ${d.upiLink}
-
-UPI id
-${d.upiPa}
-${d.upiName}
-
-Send a screenshot with payment reference number after transfer
-
-Thank you
-
-SREE FOUNDATION`
+  scanNote: { en1: '', ta1: '', en2: '', ta2: '' },
+  paymentMessageTemplate: ''
 };
 
-const customerAppreciation = [
-  { text: "Thank you for your valued order and continued trust in us.", emojis: ["🛍️", "🙏"] },
-  { text: "Your loyalty is important to us; we look forward to serving you again.", emojis: ["🏅", "🔄"] },
-  { text: "We appreciate your business and honour every payment commitment responsibly.", emojis: ["💼", "💳"] },
-  { text: "Thank you for choosing us. We value a long-lasting business relationship.", emojis: ["🤝", "♾️"] },
-  { text: "Your regular support drives our commitment to better service.", emojis: ["🌟", "🛠️"] },
-  { text: "We sincerely appreciate your order and timely payment support.", emojis: ["📦", "⏱️"] },
-  { text: "Customer loyalty is our greatest asset—thank you for being with us.", emojis: ["💎", "🫂"] },
-  { text: "We value your business and look forward to your next order.", emojis: ["💼", "🔜"] },
-  { text: "Thank you for your confidence in us; we remain committed to fair business practices.", emojis: ["⚖️", "🤝"] },
-  { text: "Your order is appreciated, and your continued patronage means a great deal to us.", emojis: ["🛍️", "💖"] },
-  { text: "We believe trust, loyalty, and payment integrity build strong partnerships.", emojis: ["🛡️", "🤝"] },
-  { text: "Thank you for your business. We look forward to serving your regular requirements.", emojis: ["💼", "🔁"] },
-  { text: "Your support inspires us to deliver quality and dependable service every time.", emojis: ["🏆", "🌟"] },
-  { text: "We appreciate your order and remain committed to honouring all obligations.", emojis: ["📦", "✅"] },
-  { text: "Thank you for being a valued customer; we look forward to continued association.", emojis: ["💎", "🔗"] },
-  { text: "Your loyalty strengthens our business—thank you for your continued orders.", emojis: ["💪", "🔄"] },
-  { text: "We value ethical commitments and appreciate the trust you place in us.", emojis: ["⚖️", "🙏"] },
-  { text: "Thank you for your order. We hope to receive the opportunity to serve you again soon.", emojis: ["🛍️", "⏳"] },
-  { text: "Strong business relationships begin with trust—thank you for your support.", emojis: ["🏗️", "🤝"] },
-  { text: "We appreciate your partnership and look forward to many more orders ahead.", emojis: ["🤝", "📈"] }
-];
+// Fills in {token} placeholders from vars; unknown tokens become ''.
+function renderTemplate(tpl, vars){
+  return String(tpl || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : ''));
+}
 
-let currentAppreciation = customerAppreciation[0];
+// No embedded content — populated by loadConfigFromLocal() / watchConfigDoc('appreciation', ...).
+let customerAppreciation = [];
 
-function randomizeAppreciation() {
+let currentAppreciation = { text: '', emojis: ['', ''] };
+function randomizeAppreciation(){
+  if(!customerAppreciation.length){ currentAppreciation = { text: '', emojis: ['', ''] }; return; }
   const randomIndex = Math.floor(Math.random() * customerAppreciation.length);
   currentAppreciation = customerAppreciation[randomIndex];
 }
@@ -859,6 +824,9 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 const pad = n => n.toString().padStart(2,'0');
 const inr = n => Math.round(n).toString();
 const fmt = n => Math.round(n).toString();
+// "10 + 2 = 12" when there's a free quantity; plain "10" when there isn't
+// — used by both the entry screen footer and the generated bill image.
+const formatQtyFree = (qty, free) => free > 0 ? `${qty} + ${free} = ${qty + free}` : String(qty);
 
 function limit7Digits(el) { if (el.value.length > 7) el.value = el.value.slice(0, 7); }
 
@@ -1457,7 +1425,17 @@ function togglePaymentDisabled(idx){
 const LS_ITEMS_KEY = 'sf_items_v1';
 const LS_RECEIVERS_KEY = 'sf_receivers_v1';
 const LS_THEMES_KEY = 'sf_themes_v1';
-const CONFIG_LS_KEYS = { items: LS_ITEMS_KEY, receivers: LS_RECEIVERS_KEY, themes: LS_THEMES_KEY };
+const LS_APPRECIATION_KEY = 'sf_appreciation_v1';
+const LS_SETTINGS_KEY = 'sf_settings_v1';
+const CONFIG_LS_KEYS = { items: LS_ITEMS_KEY, receivers: LS_RECEIVERS_KEY, themes: LS_THEMES_KEY, appreciation: LS_APPRECIATION_KEY };
+// One get/set pair per array-shaped config kind, so watchConfigDoc/
+// loadConfigFromLocal can stay generic instead of a growing if/else chain.
+const CONFIG_ARRAY = {
+  items:        { get: () => CONFIG.items,        set: v => { CONFIG.items = v; } },
+  receivers:    { get: () => CONFIG.receivers,     set: v => { CONFIG.receivers = v; } },
+  themes:       { get: () => STORED_THEMES,        set: v => { STORED_THEMES = v; } },
+  appreciation: { get: () => customerAppreciation, set: v => { customerAppreciation = v; } }
+};
 
 function persistConfigLocal(kind, list){
   try{ localStorage.setItem(CONFIG_LS_KEYS[kind], JSON.stringify(list)); }
@@ -1467,15 +1445,42 @@ function readConfigLocal(kind){
   try{ const p = JSON.parse(localStorage.getItem(CONFIG_LS_KEYS[kind]) || 'null'); return Array.isArray(p) ? p : null; }
   catch(e){ return null; }
 }
+function persistSettingsLocal(obj){
+  try{ localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(obj)); }
+  catch(e){ /* storage full/unavailable */ }
+}
+function readSettingsLocal(){
+  try{ return JSON.parse(localStorage.getItem(LS_SETTINGS_KEY) || 'null'); }
+  catch(e){ return null; }
+}
+function applySettings(d){
+  if(!d) return;
+  if(d.company) CONFIG.company = d.company;
+  if(typeof d.upiRef === 'string') CONFIG.upiRef = d.upiRef;
+  if(Number.isFinite(d.rowCount) && d.rowCount > 0) CONFIG.rowCount = d.rowCount;
+  if(d.scanNote) CONFIG.scanNote = d.scanNote;
+  if(typeof d.paymentMessageTemplate === 'string') CONFIG.paymentMessageTemplate = d.paymentMessageTemplate;
+}
 
-// Loads items/receivers/themes from the local mirror for instant, offline-
-// capable entry. No hardcoded business data lives in this file — a
-// device with no local mirror yet simply starts empty and waits for
-// watchConfigDoc (below) to pull whatever's already saved in Firestore.
+// No fallback to sample/default data anywhere in here: if neither the
+// local mirror nor Firestore has this yet, the corresponding CONFIG
+// field simply stays empty (see reportConfigAvailability below, which
+// surfaces that as a visible warning instead of pretending it's fine).
 function loadConfigFromLocal(){
-  CONFIG.items = readConfigLocal('items') || [];
-  CONFIG.receivers = readConfigLocal('receivers') || [];
-  STORED_THEMES = readConfigLocal('themes') || [];
+  Object.keys(CONFIG_ARRAY).forEach(kind => { CONFIG_ARRAY[kind].set(readConfigLocal(kind) || []); });
+  applySettings(readSettingsLocal());
+  logMsg('Loaded catalogue from local cache.', 'info');
+  reportConfigAvailability();
+}
+
+// Point-1 requirement: don't silently proceed as if things are fine when
+// core config is genuinely missing everywhere — say so, visibly.
+function reportConfigAvailability(){
+  const missing = [];
+  if(!CONFIG.items.length) missing.push('items');
+  if(!CONFIG.receivers.length) missing.push('payment methods');
+  if(!CONFIG.company.name) missing.push('company settings');
+  if(missing.length) setMsg('No ' + missing.join(', ') + ' in local cache or cloud yet — add them via Manage screens, or in Firestore.', 'warning');
 }
 
 // Fire-and-forget push to Firestore, exactly like saveOrderToCloud/
@@ -1489,6 +1494,9 @@ async function pushConfigToCloud(kind, list){
     await setDoc(doc(db, 'config', kind), { list, updatedAt: Date.now() });
   }catch(e){ /* offline — local mirror already has it; retried once online */ }
 }
+// (No in-app editor writes to config/settings yet — it's populated
+// directly in Firestore. Add a pushSettingsToCloud(obj) analogous to
+// pushConfigToCloud() here if/when a settings-editing screen is built.)
 
 // One realtime listener per config doc. Fires immediately with whatever
 // Firestore already has cached locally (near-instant, no network wait
@@ -1509,13 +1517,26 @@ function watchConfigDoc(kind, applyFn){
         applyFn(list);
         persistConfigLocal(kind, list);
         refreshOpenConfigUI();
+        logMsg(`Synced ${kind} from cloud (${list.length}).`, 'success');
       }
     } else if(!seeded){
       seeded = true;
-      const current = kind === 'items' ? CONFIG.items : kind === 'receivers' ? CONFIG.receivers : STORED_THEMES;
+      const current = CONFIG_ARRAY[kind].get();
       if(current && current.length) setDoc(doc(db, 'config', kind), { list: current, updatedAt: Date.now() }).catch(() => {});
     }
-  }, () => { /* offline — local mirror (already applied) keeps things working */ });
+  }, () => { logMsg(`Cloud sync for ${kind} unavailable — using local cache.`, 'warning'); });
+}
+function watchSettingsDoc(){
+  if(!fbReady()) return;
+  const { db, doc, onSnapshot } = window.FB;
+  onSnapshot(doc(db, 'config', 'settings'), snap => {
+    if(snap.exists()){
+      applySettings(snap.data());
+      persistSettingsLocal(snap.data());
+      logMsg('Synced business settings from cloud.', 'success');
+    }
+    reportConfigAvailability();
+  }, () => { logMsg('Cloud sync for settings unavailable — using local cache.', 'warning'); });
 }
 
 // If a device is looking at the Manage Items / Manage Payment Methods list
@@ -1758,14 +1779,7 @@ function buildUpiUrlFor(receiver, amount, custName){
 
 function updateEditorSummary(data){
   $('footerItemCount').textContent = String(data.itemCount).slice(-2);
-  $('footerQty').textContent = String(data.totalQty).slice(-4);
-  $('footerFree').textContent = data.totalFree > 0 ? String(data.totalFree).slice(-3) : '-';
-  
-  if (data.totalFree > 0) {
-    $('footerRateSum').textContent = String(data.totalQty + data.totalFree).slice(-4);
-  } else {
-    $('footerRateSum').textContent = '-';
-  }
+  $('footerQtyFree').textContent = formatQtyFree(data.totalQty, data.totalFree);
 
   $('footerAmt').textContent = String(Math.round(data.subtotalVal)).slice(-7);
 
@@ -1784,11 +1798,10 @@ function updateEditorSummary(data){
 }
 
 function orderImageTemplate(data, nonCashAllocations){
-  // Column layout intentionally mirrors the entry screen's items table
-  // exactly: always #, Item, Qty, Free, Rate, Amt (Free column always
-  // present, shown as "-" when unused) — the bill image is never a
-  // differently-shaped table from what was just filled in on screen.
-  const theadHtml = `<tr><th>#</th><th>Item</th><th>Qty</th><th>Free</th><th>Rate</th><th>Amt</th></tr>`;
+  // Column layout mirrors the entry screen's items table: #, Item, a
+  // merged Qty group (rows keep separate Qty/Free/Rate; the header spans
+  // them and the footer collapses to one "Qty + Free = Total" figure), Amt.
+  const theadHtml = `<tr><th>#</th><th>Item</th><th colspan="3">Qty</th><th>Amt</th></tr>`;
 
   const rowsHtml = data.rows.map((r, idx) => {
     const rowStyle = getRandomDynamicRowStyle(idx + 1);
@@ -1803,19 +1816,14 @@ function orderImageTemplate(data, nonCashAllocations){
   }).join('') || `<tr><td colspan="6" class="empty">No items added</td></tr>`;
 
   const itemCountStr = String(data.itemCount).slice(-2);
-  const totalQtyStr = String(data.totalQty).slice(-4);
-  const totalFreeStr = data.totalFree > 0 ? String(data.totalFree).slice(-3) : '-';
-  const qtyPlusFreeStr = data.totalFree > 0 ? String(data.totalQty + data.totalFree).slice(-4) : '-';
 
-  // Same six footer cells, in the same order, as the entry screen's
-  // tfoot: count | caption | qty | free | qty+free (or "-") | amount.
+  // Same four footer cells, in the same order, as the entry screen's
+  // tfoot: count | caption | qty+free (merged) | amount.
   const footerHtml = data.itemCount > 1 ? `
     <tr class="subtotal-row" style="background:var(--primary-light); font-weight:900;">
       <td style="text-align:center; padding:4px 2px; font-size:14px;">${itemCountStr}</td>
       <td style="text-align:left; padding:4px 2px;">Counts and Sub Total</td>
-      <td style="text-align:center; padding:4px 2px;">${totalQtyStr}</td>
-      <td style="text-align:center; padding:4px 2px;">${totalFreeStr}</td>
-      <td style="text-align:center; padding:4px 2px;">${qtyPlusFreeStr}</td>
+      <td colspan="3" style="text-align:center; padding:4px 2px;">${formatQtyFree(data.totalQty, data.totalFree)}</td>
       <td style="text-align:right; padding:4px 2px;">₹${String(Math.round(data.subtotalVal)).slice(-7)}</td>
     </tr>` : '';
 
@@ -1940,6 +1948,25 @@ async function renderOrderImage(){
   $('btnImage').disabled = !isValid;
   $('btnSave').disabled = !isValid || isLocked; // a locked, just-loaded order has nothing new to save yet
 
+  // Live validation status while typing (not just on submit) — only logs
+  // when the actual reason changes, so it doesn't spam on every keystroke.
+  let reason = 'ok';
+  if(!data.rows.length) reason = 'no-items';
+  else if(unassignedExists) reason = 'unassigned-payment';
+  else if(diff !== 0) reason = 'amount-mismatch';
+  else if(data.orderAmountVal <= 0) reason = 'zero-amount';
+  if(reason !== lastValidityReason){
+    lastValidityReason = reason;
+    const messages = {
+      'ok': 'Form is valid.',
+      'no-items': 'Add at least one item to continue.',
+      'unassigned-payment': 'Select a payment method for every line.',
+      'amount-mismatch': `Payment allocation doesn't match the order amount yet.`,
+      'zero-amount': 'Order amount must be at least ₹1.'
+    };
+    logMsg(messages[reason], reason === 'ok' ? 'success' : 'info');
+  }
+
   if(!isValid){
     imageWrap.style.display = 'none';
     $('orderImage').innerHTML = '';
@@ -2056,7 +2083,28 @@ function withTimeout(promise, ms, message){
 // font, usually) doesn't load cleanly; this retries once with looser,
 // tainting-tolerant options and is time-boxed throughout so a stalled
 // render can never hang the Save / WA buttons indefinitely.
+// Fits the natural-size render into a fixed 9:16 frame — scaled down
+// (never up, so text stays crisp) to whichever dimension is tighter, then
+// centred over a plain white background. This is a "contain" fit: the
+// bill is never cropped and never stretched/distorted, it's just placed
+// inside a consistently-shaped canvas suitable for WhatsApp Status/social
+// sharing. Short bills get letterboxed; exceptionally tall bills simply
+// scale down further rather than losing any content.
+function fitTo9x16(sourceCanvas){
+  const frameW = 1080, frameH = 1920;
+  const frame = document.createElement('canvas');
+  frame.width = frameW; frame.height = frameH;
+  const ctx = frame.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, frameW, frameH);
+  const scale = Math.min(frameW / sourceCanvas.width, frameH / sourceCanvas.height, 1);
+  const drawW = sourceCanvas.width * scale, drawH = sourceCanvas.height * scale;
+  ctx.drawImage(sourceCanvas, (frameW - drawW) / 2, (frameH - drawH) / 2, drawW, drawH);
+  return frame;
+}
+
 async function capturePng(node){
+  logMsg('Generating bill image…', 'progress');
   if(typeof document.fonts !== 'undefined'){
     try{ await withTimeout(document.fonts.ready, 3000, 'font load timeout'); }catch(e){ /* proceed regardless */ }
   }
@@ -2065,16 +2113,29 @@ async function capturePng(node){
     { scale: 2.5, backgroundColor: null, useCORS: true, allowTaint: true  },
     { scale: 1.5, backgroundColor: null, useCORS: true, allowTaint: true  }
   ];
-  let lastErr;
-  for(const opts of attempts){
+  let sourceCanvas = null, lastErr;
+  for(let i = 0; i < attempts.length; i++){
     try{
-      const canvas = await withTimeout(html2canvas(node, opts), 12000, 'Image rendering timed out.');
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-      if(blob) return blob;
-      lastErr = new Error('Image creation failed.');
-    }catch(e){ lastErr = e; }
+      sourceCanvas = await withTimeout(html2canvas(node, attempts[i]), 12000, 'Image rendering timed out.');
+      break;
+    }catch(e){
+      lastErr = e;
+      if(i < attempts.length - 1) logMsg(`Image render attempt ${i + 1} failed (${e.message}) — retrying…`, 'warning');
+    }
   }
-  throw lastErr || new Error('Image creation failed.');
+  if(!sourceCanvas){
+    logMsg('Image generation failed after all retries: ' + lastErr.message, 'error');
+    throw lastErr || new Error('Image creation failed.');
+  }
+
+  const framed = fitTo9x16(sourceCanvas);
+  const blob = await new Promise(resolve => framed.toBlob(resolve, 'image/png'));
+  if(!blob){
+    logMsg('Image generation failed: could not encode PNG.', 'error');
+    throw new Error('Image creation failed.');
+  }
+  logMsg('Bill image generated (9:16).', 'success');
+  return blob;
 }
 
 // Session-only cache of file handles, keyed by order id, so re-saving the
@@ -2256,7 +2317,7 @@ async function sendPayment(){
     if(!nonCash.length){
       message = `Hello ${data.custName}, your order ${data.orderNo} amount is ${inr(data.orderAmountVal)} — payable by cash. Thank you!`;
     } else if(nonCash.length === 1){
-      message = CONFIG.paymentMessage({ custName: data.custName, orderNo: data.orderNo, amount: inr(data.orderAmountVal), upiLink: buildUpiUrlFor(nonCash[0].receiver, nonCash[0].amount, data.custName), upiPa: nonCash[0].receiver.upi, upiName: nonCash[0].receiver.name });
+      message = renderTemplate(CONFIG.paymentMessageTemplate, { custName: data.custName, orderNo: data.orderNo, amount: inr(data.orderAmountVal), upiLink: buildUpiUrlFor(nonCash[0].receiver, nonCash[0].amount, data.custName), upiPa: nonCash[0].receiver.upi, upiName: nonCash[0].receiver.name, companyName: CONFIG.company.name });
     } else {
       message = `Hello ${data.custName}, your order ${data.orderNo} amount is ${inr(data.orderAmountVal)}, split across:\n${nonCash.map(a => `- ${a.receiver.name}: ${inr(a.amount)}`).join('\n')}\nThank you!`;
     }
@@ -2283,6 +2344,7 @@ async function saveAndSendImage(){
 // the UI never has to wait on the network to feel correct.
 let currentOrderId = null;
 let isDirty = true; // true = current form doesn't match a saved bill yet
+let lastValidityReason = null; // dedupes the live validation log in renderOrderImage()
 
 // ── View mode / Edit mode ──
 // Two states drive which pair of buttons occupies slots 3 & 4:
@@ -2465,10 +2527,12 @@ async function fetchOrdersList(){
 async function refreshOrdersCache(){
   if(!fbReady()) return;
   try{
+    logMsg('Syncing saved bills from cloud…', 'progress');
     const cloud = await fetchOrdersList();
     ordersCache = mergeById(ordersCache, cloud);
     writeLocalCache(LS_ORDERS_KEY, ordersCache, 200);
-  }catch(e){ /* offline — local mirror still usable */ }
+    logMsg(`Synced ${ordersCache.length} saved bill(s).`, 'success');
+  }catch(e){ logMsg('Could not sync saved bills — using local cache.', 'warning'); }
 }
 window.addEventListener('firebase-ready', refreshOrdersCache);
 
@@ -2504,9 +2568,10 @@ async function persistOrderRecord(data){
   upsertCustomerLocal(data.custName, data.custPhone);
 
   const orderId = currentOrderId;
+  logMsg('Saved locally; syncing bill to cloud…', 'progress');
   saveOrderToCloud(orderId, record)
-    .then(() => upsertCustomerCloud(data.custName, data.custPhone))
-    .catch(() => { /* stays queued locally — retried by Firestore once online */ });
+    .then(() => { logMsg('Bill synced to cloud.', 'success'); return upsertCustomerCloud(data.custName, data.custPhone); })
+    .catch(() => { logMsg('Cloud sync failed — stays queued locally until back online.', 'warning'); });
 
   return orderId;
 }
@@ -2552,9 +2617,9 @@ async function refreshCustomerCache(){
 }
 window.addEventListener('firebase-ready', refreshCustomerCache);
 window.addEventListener('firebase-ready', () => {
-  watchConfigDoc('items', list => { CONFIG.items = list; });
-  watchConfigDoc('receivers', list => { CONFIG.receivers = list; });
-  watchConfigDoc('themes', list => { STORED_THEMES = list; });
+  Object.keys(CONFIG_ARRAY).forEach(kind => watchConfigDoc(kind, CONFIG_ARRAY[kind].set));
+  watchSettingsDoc();
+  logMsg('Cloud connected.', 'success');
 });
 
 // ---- Customer name/phone suggestions ----
