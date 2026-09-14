@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage Fixed Inputs — SREE FOUNDATION</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAtH3LTuNFUiPS7Kd5NF3YEg40pyXEI49A",
+    authDomain: "sree-foundation-order-app.firebaseapp.com",
+    projectId: "sree-foundation-order-app",
+    storageBucket: "sree-foundation-order-app.firebasestorage.app",
+    messagingSenderId: "289204055794",
+    appId: "1:289204055794:web:6a85cb0e10d3a6c9aaaa6b"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  window.FB = { db, collection, doc, setDoc, getDoc, onSnapshot };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<style>
+  :root{
+    --primary:#0B5E64; --primary-light:#E7F6F6; --secondary:#128C94; --accent:#FF9F1C;
+    --bg:#EEF7F7; --ink:#16262A; --danger:#c0392b; --white:#ffffff; --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:0; background:linear-gradient(180deg,var(--primary) 0%, var(--bg) 40%);
+    font-family:'Inter',sans-serif; color:var(--ink); min-height:100vh;
+  }
+  
+  .header{
+    background:var(--primary); color:#fff; padding:16px;
+    display:flex; justify-content:space-between; align-items:center;
+    box-shadow:0 2px 8px rgba(0,0,0,0.2);
+  }
+  .header h1{margin:0; font-size:20px; font-weight:800;}
+  .header button{
+    background:var(--white); color:var(--primary); border:none;
+    padding:8px 16px; border-radius:var(--radius); font-weight:700; cursor:pointer;
+  }
+  
+  .container{max-width:900px; margin:20px auto; padding:0 16px 80px;}
+  
+  .tabs{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
+  .tab{
+    flex:1; min-width:120px; padding:12px; background:var(--white);
+    border:2px solid transparent; border-radius:var(--radius);
+    font-weight:700; cursor:pointer; text-align:center;
+    box-shadow:0 2px 4px rgba(0,0,0,0.1);
+  }
+  .tab.active{border-color:var(--primary); background:var(--primary-light);}
+  
+  .panel{display:none; background:var(--white); border-radius:var(--radius); padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+  .panel.active{display:block;}
+  
+  .panel h2{margin-top:0; color:var(--primary); font-size:18px;}
+  .panel h3{margin:16px 0 8px; font-size:14px; color:var(--secondary);}
+  
+  .form-row{display:flex; gap:12px; margin-bottom:12px;}
+  .form-row > *{flex:1;}
+  label{display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:#557;}
+  input, textarea, select{
+    width:100%; border:1px solid #cfd8dc; border-radius:6px;
+    padding:8px; font-size:14px; font-family:'Inter',sans-serif;
+  }
+  input:focus, textarea:focus, select:focus{outline:none; border-color:var(--primary);}
+  textarea{min-height:80px; resize:vertical;}
+  
+  .btn{
+    border:none; border-radius:6px; padding:10px 16px;
+    font-weight:700; cursor:pointer; font-size:14px;
+  }
+  .btn-primary{background:var(--primary); color:#fff;}
+  .btn-secondary{background:#e0e0e0; color:#333;}
+  .btn-danger{background:var(--danger); color:#fff;}
+  .btn-success{background:#4CAF50; color:#fff;}
+  .btn:disabled{opacity:0.5; cursor:not-allowed;}
+  
+  .item-list, .payment-list, .appreciation-list{
+    max-height:400px; overflow-y:auto; margin:16px 0;
+    border:1px solid #e0e0e0; border-radius:6px;
+  }
+  .list-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px; border-bottom:1px solid #f0f0f0;
+  }
+  .list-item:last-child{border-bottom:none;}
+  .list-item-info{flex:1;}
+  .list-item-name{font-weight:700; font-size:14px;}
+  .list-item-detail{font-size:12px; color:#666; margin-top:2px;}
+  .list-item-actions{display:flex; gap:8px;}
+  
+  .empty-state{text-align:center; padding:40px; color:#999;}
+  
+  .status-msg{
+    padding:12px; border-radius:6px; margin:12px 0;
+    font-size:13px; font-weight:700;
+  }
+  .status-msg.success{background:#E8F5E9; color:#2E7D32;}
+  .status-msg.error{background:#FFEBEE; color:#C62828;}
+  .status-msg.info{background:#E3F2FD; color:#1976D2;}
+  
+  .config-textarea{font-family:'Roboto Mono',monospace; font-size:12px; min-height:200px;}
+  
+  .bulk-section{
+    background:#fff8e1; padding:12px; border-radius:6px; border:1px solid #ffe082;
+    margin-top:16px;
+  }
+  .bulk-section h3{margin-top:0; font-size:14px; color:#f57f17;}
+  .bulk-section p{font-size:12px; color:#666; margin-bottom:8px;}
+  .bulk-textarea{
+    min-height:150px; font-family:monospace; font-size:12px;
+    background:#fff; border:1px solid #ffd54f;
+  }
+  
+  @media (max-width:600px){
+    .form-row{flex-direction:column;}
+    .tabs{flex-direction:column;}
+    .tab{min-width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚙️ Manage Fixed Inputs</h1>
+  <button onclick="window.close()">Close</button>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('items')">📦 Items</div>
+    <div class="tab" onclick="switchTab('payments')">💳 Payment Methods</div>
+    <div class="tab" onclick="switchTab('company')">🏢 Company</div>
+    <div class="tab" onclick="switchTab('appreciation')">💬 Appreciation</div>
+    <div class="tab" onclick="switchTab('config')">🔧 Firestore Config</div>
+  </div>
+  
+  <!-- ITEMS PANEL -->
+  <div class="panel active" id="panel-items">
+    <h2>Manage Items</h2>
+    <div class="form-row">
+      <div>
+        <label>Item Name</label>
+        <input type="text" id="itemName" maxlength="25" placeholder="Short name (max 25 chars)">
+      </div>
+      <div>
+        <label>Rate (₹)</label>
+        <input type="text" id="itemRate" maxlength="6" inputmode="decimal" placeholder="0.00">
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <label>MOQ (Min Order Qty)</label>
+        <input type="text" id="itemMoq" maxlength="3" inputmode="numeric" placeholder="1">
+      </div>
+      <div>
+        <label>Free Qty per MOQ</label>
+        <input type="text" id="itemFreePerMoq" maxlength="3" inputmode="numeric" placeholder="0">
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary" onclick="saveItem()">💾 Save Item</button>
+      <button class="btn btn-secondary" onclick="clearItemForm()">Clear</button>
+    </div>
+    <div id="itemStatus"></div>
+    <div class="item-list" id="itemList"></div>
+  </div>
+  
+  <!-- PAYMENTS PANEL -->
+  <div class="panel" id="panel-payments">
+    <h2>Manage Payment Methods</h2>
+    <div class="form-row">
+      <div>
+        <label>Name</label>
+        <input type="text" id="paymentName" maxlength="25" placeholder="e.g., GPay, PhonePe">
+      </div>
+      <div>
+        <label>UPI ID (leave blank for cash)</label>
+        <input type="text" id="paymentUpi" maxlength="50" placeholder="xxxx@upi">
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary" onclick="savePayment()">💾 Save Method</button>
+      <button class="btn btn-secondary" onclick="clearPaymentForm()">Clear</button>
+    </div>
+    <div id="paymentStatus"></div>
+    <div class="payment-list" id="paymentList"></div>
+  </div>
+  
+  <!-- COMPANY PANEL -->
+  <div class="panel" id="panel-company">
+    <h2>Company Details</h2>
+    <div class="form-row">
+      <div>
+        <label>Company Name</label>
+        <input type="text" id="companyName" maxlength="50" placeholder="SREE FOUNDATION">
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <label>Address</label>
+        <input type="text" id="companyAddress" maxlength="100" placeholder="Location">
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary" onclick="saveCompany()">💾 Save Company</button>
+      <button class="btn btn-secondary" onclick="loadCompany()">Refresh</button>
+    </div>
+    <div id="companyStatus"></div>
+  </div>
+  
+  <!-- APPRECIATION PANEL -->
+  <div class="panel" id="panel-appreciation">
+    <h2>Customer Appreciation Messages</h2>
+    
+    <!-- Single Message Form -->
+    <div style="background:#f5f5f5; padding:12px; border-radius:6px; margin-bottom:16px;">
+      <h3 style="margin-top:0; font-size:14px; color:var(--primary);">➕ Add Single Message</h3>
+      <div class="form-row">
+        <div>
+          <label>Message Text</label>
+          <textarea id="appreciationText" maxlength="150" placeholder="Thank you message..."></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>Emoji 1</label>
+          <input type="text" id="emoji1" maxlength="2" placeholder="🛍️">
+        </div>
+        <div>
+          <label>Emoji 2</label>
+          <input type="text" id="emoji2" maxlength="2" placeholder="🙏">
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" onclick="saveAppreciation()">💾 Save Message</button>
+        <button class="btn btn-secondary" onclick="clearAppreciationForm()">Clear</button>
+      </div>
+    </div>
+    
+    <!-- Bulk Upload Section -->
+    <div class="bulk-section">
+      <h3>📥 Bulk Upload Messages</h3>
+      <p>
+        Paste multiple messages below (one per line). Format: <code>Message text 😊, 🙏</code><br>
+        Emojis are optional and will be auto-detected if present at end of line.
+      </p>
+      <textarea id="bulkAppreciationText" class="bulk-textarea" maxlength="5000" placeholder="Thank you for your valued order! 🛍️, 🙏
+Your loyalty means everything to us. 💎, 🫂
+We appreciate your business and support. 💼, 💳
+Customer like you make our work meaningful. 🌟, ✨"></textarea>
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <button class="btn btn-success" onclick="bulkUploadAppreciation()">📥 Import Messages</button>
+        <button class="btn btn-secondary" onclick="clearBulkAppreciation()">Clear</button>
+      </div>
+      <div id="bulkAppreciationStatus"></div>
+    </div>
+    
+    <div id="appreciationStatus"></div>
+    <div class="appreciation-list" id="appreciationList"></div>
+  </div>
+  
+  <!-- CONFIG PANEL -->
+  <div class="panel" id="panel-config">
+    <h2>Firestore Configuration</h2>
+    <p style="font-size:13px; color:#666;">
+      Paste your Firebase config below. Current configuration is loaded as default.
+      Changes will be saved to localStorage and used by the main app.
+    </p>
+    <textarea class="config-textarea" id="firebaseConfigText"></textarea>
+    <div style="display:flex; gap:8px; margin-top:12px;">
+      <button class="btn btn-primary" onclick="saveFirebaseConfig()">💾 Save Config</button>
+      <button class="btn btn-secondary" onclick="loadFirebaseConfig()">Load Current</button>
+      <button class="btn btn-success" onclick="testFirebaseConnection()">🔗 Test Connection</button>
+    </div>
+    <div id="configStatus"></div>
+  </div>
+</div>
+
+<script>
+// ===================== State =====================
+let items = [];
+let payments = [];
+let company = { name: '', address: '' };
+let appreciation = [];
+let currentFirebaseConfig = null;
+let editingIndex = null;
+
+// ===================== Tab Switching =====================
+function switchTab(tabName){
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', ['items','payments','company','appreciation','config'][i] === tabName);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  $(`panel-${tabName}`).classList.add('active');
+}
+
+// ===================== Utility =====================
+const $ = id => document.getElementById(id);
+
+function showStatus(elementId, message, type='info'){
+  const el = $(elementId);
+  if(!el) return;
+  el.innerHTML = `<div class="status-msg ${type}">${message}</div>`;
+  setTimeout(() => { el.innerHTML = ''; }, 5000);
+}
+
+function loadFromLocal(key, fallback=[]){
+  try{
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  }catch(e){
+    return fallback;
+  }
+}
+
+function saveToLocal(key, data){
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+// ===================== Firebase =====================
+window.addEventListener('firebase-ready', () => {
+  console.log('✅ Firebase ready in manage.html');
+  loadAllData();
+});
+
+function getFB(){
+  return window.FB && window.FB.db ? window.FB : null;
+}
+
+async function loadFromFirestore(){
+  const fb = getFB();
+  if(!fb) return null;
+  
+  try{
+    const { db, doc, getDoc } = fb;
+    const snap = await getDoc(doc(db, 'config', 'main'));
+    if(snap.exists()){
+      return snap.data();
+    }
+  }catch(e){
+    console.error('Firestore load error:', e);
+  }
+  return null;
+}
+
+async function saveToFirestore(data){
+  const fb = getFB();
+  if(!fb) throw new Error('Firebase not ready');
+  
+  const { db, doc, setDoc } = fb;
+  await setDoc(doc(db, 'config', 'main'), data);
+}
+
+// ===================== Load All Data =====================
+async function loadAllData(){
+  const cloudData = await loadFromFirestore();
+  
+  if(cloudData){
+    items = cloudData.items || [];
+    payments = cloudData.receivers || [];
+    company = cloudData.company || { name: '', address: '' };
+    appreciation = cloudData.appreciation || [];
+    saveToLocal('sf_items_v1', items);
+    saveToLocal('sf_receivers_v1', payments);
+    saveToLocal('sf_company_v1', company);
+    saveToLocal('sf_appreciation_v1', appreciation);
+    console.log('📥 Loaded from Firestore');
+  }else{
+    items = loadFromLocal('sf_items_v1', []);
+    payments = loadFromLocal('sf_receivers_v1', []);
+    company = loadFromLocal('sf_company_v1', { name: '', address: '' });
+    appreciation = loadFromLocal('sf_appreciation_v1', []);
+    console.log('📥 Loaded from localStorage');
+  }
+  
+  loadFirebaseConfig();
+  renderItemList();
+  renderPaymentList();
+  renderAppreciationList();
+  renderCompany();
+}
+
+// ===================== Items =====================
+function renderItemList(){
+  const list = $('itemList');
+  if(!list) return;
+  
+  if(items.length === 0){
+    list.innerHTML = '<div class="empty-state">No items yet. Add your first item above!</div>';
+    return;
+  }
+  
+  list.innerHTML = items.map((item, idx) => `
+    <div class="list-item">
+      <div class="list-item-info">
+        <div class="list-item-name">${escapeHtml(item.name)}</div>
+        <div class="list-item-detail">₹${item.rate} | MOQ: ${item.moq || 1} | Free: ${item.freePerMoq || 0}/MOQ</div>
+      </div>
+      <div class="list-item-actions">
+        <button class="btn btn-secondary" onclick="editItem(${idx})">✏️</button>
+        <button class="btn btn-danger" onclick="deleteItem(${idx})">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function saveItem(){
+  const name = $('itemName').value.trim();
+  const rate = parseFloat($('itemRate').value) || 0;
+  const moq = parseInt($('itemMoq').value) || 1;
+  const freePerMoq = parseInt($('itemFreePerMoq').value) || 0;
+  
+  if(!name){
+    showStatus('itemStatus', '⚠️ Item name is required', 'error');
+    return;
+  }
+  
+  if(editingIndex !== null){
+    items[editingIndex] = { name, rate, moq, freePerMoq };
+    editingIndex = null;
+    showStatus('itemStatus', '✅ Item updated', 'success');
+  }else{
+    items.push({ name, rate, moq, freePerMoq });
+    showStatus('itemStatus', '✅ Item added', 'success');
+  }
+  
+  clearItemForm();
+  renderItemList();
+  syncToFirestore();
+}
+
+function editItem(idx){
+  const item = items[idx];
+  $('itemName').value = item.name;
+  $('itemRate').value = item.rate;
+  $('itemMoq').value = item.moq;
+  $('itemFreePerMoq').value = item.freePerMoq;
+  editingIndex = idx;
+  window.scrollTo(0, 0);
+}
+
+function deleteItem(idx){
+  if(confirm(`Delete "${items[idx].name}"? This cannot be undone.`)){
+    items.splice(idx, 1);
+    renderItemList();
+    syncToFirestore();
+    showStatus('itemStatus', '🗑️ Item deleted', 'success');
+  }
+}
+
+function clearItemForm(){
+  $('itemName').value = '';
+  $('itemRate').value = '';
+  $('itemMoq').value = '';
+  $('itemFreePerMoq').value = '';
+  editingIndex = null;
+}
+
+// ===================== Payments =====================
+function renderPaymentList(){
+  const list = $('paymentList');
+  if(!list) return;
+  
+  if(payments.length === 0){
+    list.innerHTML = '<div class="empty-state">No payment methods yet. Add your first method above!</div>';
+    return;
+  }
+  
+  list.innerHTML = payments.map((p, idx) => `
+    <div class="list-item">
+      <div class="list-item-info">
+        <div class="list-item-name">${escapeHtml(p.name)}</div>
+        <div class="list-item-detail">${p.upi || 'Cash'}</div>
+      </div>
+      <div class="list-item-actions">
+        <button class="btn btn-secondary" onclick="editPayment(${idx})">✏️</button>
+        <button class="btn btn-danger" onclick="deletePayment(${idx})">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function savePayment(){
+  const name = $('paymentName').value.trim();
+  const upi = $('paymentUpi').value.trim();
+  
+  if(!name){
+    showStatus('paymentStatus', '⚠️ Payment method name is required', 'error');
+    return;
+  }
+  
+  payments.push({ name, upi });
+  clearPaymentForm();
+  renderPaymentList();
+  syncToFirestore();
+  showStatus('paymentStatus', '✅ Payment method added', 'success');
+}
+
+function editPayment(idx){
+  const p = payments[idx];
+  $('paymentName').value = p.name;
+  $('paymentUpi').value = p.upi;
+  editingIndex = idx;
+  window.scrollTo(0, 0);
+}
+
+function deletePayment(idx){
+  if(confirm(`Delete "${payments[idx].name}"? This cannot be undone.`)){
+    payments.splice(idx, 1);
+    renderPaymentList();
+    syncToFirestore();
+    showStatus('paymentStatus', '🗑️ Payment method deleted', 'success');
+  }
+}
+
+function clearPaymentForm(){
+  $('paymentName').value = '';
+  $('paymentUpi').value = '';
+  editingIndex = null;
+}
+
+// ===================== Company =====================
+function renderCompany(){
+  $('companyName').value = company.name || '';
+  $('companyAddress').value = company.address || '';
+}
+
+function saveCompany(){
+  company.name = $('companyName').value.trim();
+  company.address = $('companyAddress').value.trim();
+  
+  if(!company.name){
+    showStatus('companyStatus', '⚠️ Company name is required', 'error');
+    return;
+  }
+  
+  saveToLocal('sf_company_v1', company);
+  syncToFirestore();
+  showStatus('companyStatus', '✅ Company details saved', 'success');
+}
+
+function loadCompany(){
+  renderCompany();
+  showStatus('companyStatus', '🔄 Company details refreshed', 'info');
+}
+
+// ===================== Appreciation =====================
+function renderAppreciationList(){
+  const list = $('appreciationList');
+  if(!list) return;
+  
+  if(appreciation.length === 0){
+    list.innerHTML = '<div class="empty-state">No appreciation messages yet.</div>';
+    return;
+  }
+  
+  list.innerHTML = appreciation.map((a, idx) => `
+    <div class="list-item">
+      <div class="list-item-info">
+        <div class="list-item-name">${escapeHtml(a.text)}</div>
+        <div class="list-item-detail">${a.emojis ? a.emojis.join(' ') : ''}</div>
+      </div>
+      <div class="list-item-actions">
+        <button class="btn btn-danger" onclick="deleteAppreciation(${idx})">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function saveAppreciation(){
+  const text = $('appreciationText').value.trim();
+  const emoji1 = $('emoji1').value.trim();
+  const emoji2 = $('emoji2').value.trim();
+  
+  if(!text){
+    showStatus('appreciationStatus', '⚠️ Message text is required', 'error');
+    return;
+  }
+  
+  const emojis = [emoji1, emoji2].filter(e => e);
+  appreciation.push({ text, emojis });
+  
+  clearAppreciationForm();
+  renderAppreciationList();
+  syncToFirestore();
+  showStatus('appreciationStatus', '✅ Message added', 'success');
+}
+
+function deleteAppreciation(idx){
+  appreciation.splice(idx, 1);
+  renderAppreciationList();
+  syncToFirestore();
+  showStatus('appreciationStatus', '🗑️ Message deleted', 'success');
+}
+
+function clearAppreciationForm(){
+  $('appreciationText').value = '';
+  $('emoji1').value = '';
+  $('emoji2').value = '';
+}
+
+// ===================== Bulk Appreciation Upload =====================
+function bulkUploadAppreciation(){
+  const text = $('bulkAppreciationText').value.trim();
+  
+  if(!text){
+    showStatus('bulkAppreciationStatus', '⚠️ Please enter messages to upload', 'error');
+    return;
+  }
+  
+  const lines = text.split('\n').filter(line => line.trim());
+  if(lines.length === 0){
+    showStatus('bulkAppreciationStatus', '⚠️ No valid messages found', 'error');
+    return;
+  }
+  
+  let added = 0;
+  let skipped = 0;
+  
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if(!trimmed) return;
+    
+    // Try to extract emojis (look for emoji patterns at end of line)
+    const emojiMatch = trimmed.match(/([🛍️-🙏]{1,2})\s*,\s*([🛍️-🙏]{1,2})?\s*$/);
+    let messageText = trimmed;
+    let emojis = [];
+    
+    if(emojiMatch){
+      messageText = trimmed.replace(emojiMatch[0], '').trim();
+      if(emojiMatch[1]) emojis.push(emojiMatch[1]);
+      if(emojiMatch[2]) emojis.push(emojiMatch[2]);
+    }
+    
+    if(messageText.length > 0 && messageText.length <= 150){
+      appreciation.push({ text: messageText, emojis });
+      added++;
+    }else{
+      skipped++;
+    }
+  });
+  
+  renderAppreciationList();
+  syncToFirestore();
+  
+  let msg = `✅ Imported ${added} message${added !== 1 ? 's' : ''}`;
+  if(skipped > 0) msg += ` (${skipped} skipped - too long or empty)`;
+  showStatus('bulkAppreciationStatus', msg, 'success');
+  
+  $('bulkAppreciationText').value = '';
+}
+
+function clearBulkAppreciation(){
+  $('bulkAppreciationText').value = '';
+  showStatus('bulkAppreciationStatus', '', 'info');
+}
+
+// ===================== Firebase Config =====================
+function loadFirebaseConfig(){
+  const defaultConfig = {
+    apiKey: "AIzaSyAtH3LTuNFUiPS7Kd5NF3YEg40pyXEI49A",
+    authDomain: "sree-foundation-order-app.firebaseapp.com",
+    projectId: "sree-foundation-order-app",
+    storageBucket: "sree-foundation-order-app.firebasestorage.app",
+    messagingSenderId: "289204055794",
+    appId: "1:289204055794:web:6a85cb0e10d3a6c9aaaa6b"
+  };
+  
+  try{
+    const stored = localStorage.getItem('sf_firebase_config');
+    currentFirebaseConfig = stored ? JSON.parse(stored) : defaultConfig;
+  }catch(e){
+    currentFirebaseConfig = defaultConfig;
+  }
+  
+  $('firebaseConfigText').value = JSON.stringify(currentFirebaseConfig, null, 2);
+}
+
+function saveFirebaseConfig(){
+  try{
+    const configText = $('firebaseConfigText').value.trim();
+    const config = JSON.parse(configText);
+    
+    if(!config.apiKey || !config.projectId){
+      showStatus('configStatus', '⚠️ Invalid config: apiKey and projectId are required', 'error');
+      return;
+    }
+    
+    currentFirebaseConfig = config;
+    saveToLocal('sf_firebase_config', config);
+    showStatus('configStatus', '✅ Firebase config saved to localStorage', 'success');
+  }catch(e){
+    showStatus('configStatus', '⚠️ Invalid JSON: ' + e.message, 'error');
+  }
+}
+
+async function testFirebaseConnection(){
+  showStatus('configStatus', '🔗 Testing connection...', 'info');
+  
+  try{
+    const fb = getFB();
+    if(!fb){
+      showStatus('configStatus', '⚠️ Firebase not initialized', 'error');
+      return;
+    }
+    
+    const { db, doc, getDoc } = fb;
+    await getDoc(doc(db, 'config', 'main'));
+    showStatus('configStatus', '✅ Firebase connection successful', 'success');
+  }catch(e){
+    showStatus('configStatus', '⚠️ Connection failed: ' + e.message, 'error');
+  }
+}
+
+// ===================== Sync to Firestore =====================
+async function syncToFirestore(){
+  const fb = getFB();
+  if(!fb){
+    console.warn('⚠️ Firebase not ready - saving locally only');
+    return;
+  }
+  
+  try{
+    const data = {
+      items,
+      receivers: payments,
+      company,
+      appreciation,
+      updatedAt: new Date().toISOString()
+    };
+    
+    await saveToFirestore(data);
+    console.log('💾 Synced to Firestore');
+  }catch(e){
+    console.error('⚠️ Firestore sync failed:', e);
+  }
+}
+
+// ===================== Helper =====================
+function escapeHtml(str){
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 manage.html loaded');
+});
+</script>
+</body>
+</html>
