@@ -1725,7 +1725,7 @@ pushConfigDocToCloud('receivers', { list: CONFIG.receivers });
 function pushConfigDocToCloud(docId, data){
 if(!window.FB) return;
 const { db, doc, setDoc } = window.FB;
-setDoc(doc(db, 'config', docId), data, { merge: true }).catch(() => {});
+setDoc(doc(db, 'config', docId), data, { merge: true }).catch(e => { logMsg(`Cloud save failed for ${docId}: ${e.code || e.message}`, true); setSyncIndicatorState('error'); });
 }
 function replaceConfigDocInCloud(docId, data){
 if(!window.FB) return Promise.resolve();
@@ -1825,26 +1825,39 @@ if(!window.FB) return;
 setSyncIndicatorState('cloud-connected');
 const { db, doc, onSnapshot } = window.FB;
 configUnsubscribers.forEach(unsub => { try{ unsub(); }catch(e){} });
+const seeded = {};
+const seedIfMissing = (id, list) => {
+// Cloud has no such doc (confirmed by the server, not just the local cache) but this device has data: upload it once.
+if (seeded[id] || !Array.isArray(list) || !list.length) return;
+seeded[id] = true;
+logMsg(`Cloud has no ${id} yet — uploading this device's ${list.length} entr${list.length === 1 ? 'y' : 'ies'}.`);
+pushConfigDocToCloud(id, { list });
+};
+const syncErr = id => err => { console.error('[config sync] ' + id + ' error', err); logMsg(`Cloud sync: cannot read ${id} (${err.code || err.message})`, true); setSyncIndicatorState('error'); };
 configUnsubscribers = [
 onSnapshot(doc(db, 'config', 'items'), snap => {
-if(!snap.exists()) return;
+if(!snap.exists()){ if(!snap.metadata.fromCache) seedIfMissing('items', CONFIG.items); return; }
 const list = snap.data().list;
 if(Array.isArray(list)){
+const changed = JSON.stringify(list) !== JSON.stringify(CONFIG.items);
 CONFIG.items = list;
 try{ localStorage.setItem(LS_ITEMS_KEY, JSON.stringify(CONFIG.items)); }catch(e){}
+if(changed && !snap.metadata.fromCache) logMsg(`Items synced from cloud (${list.length}).`);
 scheduleUpdate();
 }
-}, err => console.error('[config sync] items error', err)),
+}, syncErr('items')),
 onSnapshot(doc(db, 'config', 'receivers'), snap => {
-if(!snap.exists()) return;
+if(!snap.exists()){ if(!snap.metadata.fromCache) seedIfMissing('receivers', CONFIG.receivers); return; }
 const list = snap.data().list;
 if(Array.isArray(list)){
+const changed = JSON.stringify(list) !== JSON.stringify(CONFIG.receivers);
 CONFIG.receivers = list;
 try{ localStorage.setItem(LS_RECEIVERS_KEY, JSON.stringify(CONFIG.receivers)); }catch(e){}
+if(changed && !snap.metadata.fromCache) logMsg(`Payment methods synced from cloud (${list.length}).`);
 renderPaymentRows();
 scheduleUpdate();
 }
-}, err => console.error('[config sync] receivers error', err))
+}, syncErr('receivers'))
 ];
 loadConfigOnce();
 }
@@ -1854,21 +1867,24 @@ const { db, doc, getDoc } = window.FB;
 function saveSettingsLocal(){
 try{ localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify({ company: CONFIG.company, scanNote: CONFIG.scanNote, scanNoteImage: CONFIG.scanNoteImage })); }catch(e){}
 }
+let cfgFailed = false;
+const cfgFail = (id, e) => { cfgFailed = true; console.error('[config sync] ' + id + ' error', e); logMsg(`Cloud sync: cannot read ${id} (${e.code || e.message})`, true); };
+let settingsMissing = false;
 try{
 const snap = await getDoc(doc(db, 'config', 'settings'));
 if(snap.exists()){
 const data = snap.data();
 if(data.company) CONFIG.company = data.company;
 if(data.scanNote) CONFIG.scanNote = data.scanNote;
-}
-}catch(e){ console.error('[config sync] settings error', e); }
+} else settingsMissing = true;
+}catch(e){ cfgFail('settings', e); }
 try{
 const snap = await getDoc(doc(db, 'config', 'company'));
 if(snap.exists()){
 const data = snap.data();
 if(data.name || data.address) CONFIG.company = { name: data.name || '', address: data.address || '' };
 }
-}catch(e){ console.error('[config sync] company error', e); }
+}catch(e){ cfgFail('company', e); }
 try{
 const snap = await getDoc(doc(db, 'config', 'scanNote'));
 if(snap.exists()){
@@ -1878,7 +1894,7 @@ if(note.en1 || note.ta1 || note.en2 || note.ta2){
 CONFIG.scanNote = { en1: note.en1 || '', ta1: note.ta1 || '', en2: note.en2 || '', ta2: note.ta2 || '' };
 }
 }
-}catch(e){ console.error('[config sync] scanNote error', e); }
+}catch(e){ cfgFail('scanNote', e); }
 try{
 const snap = await getDoc(doc(db, 'config', 'scanNoteImage'));
 if(snap.exists()){
@@ -1886,7 +1902,7 @@ const data = snap.data();
 const img = data.img || data.scanNoteImage;
 if(img) CONFIG.scanNoteImage = img;
 }
-}catch(e){ console.error('[config sync] scanNoteImage error', e); }
+}catch(e){ cfgFail('scanNoteImage', e); }
 try{
 const snap = await getDoc(doc(db, 'config', 'themes'));
 if(snap.exists()){
@@ -1900,10 +1916,14 @@ pushConfigDocToCloud('themes', { list: STORED_THEMES });
 } else {
 pushConfigDocToCloud('themes', { list: STORED_THEMES });
 }
-}catch(e){ console.error('[config sync] themes error', e); }
+}catch(e){ cfgFail('themes', e); }
+if(settingsMissing && !cfgFailed && (CONFIG.company.name || CONFIG.scanNote.en1 || CONFIG.scanNote.ta1)){
+logMsg("Cloud has no company settings yet — uploading this device's.");
+pushConfigDocToCloud('settings', { company: CONFIG.company, scanNote: CONFIG.scanNote });
+}
 saveSettingsLocal();
 scheduleUpdate();
-setSyncIndicatorState('cloud-synced');
+setSyncIndicatorState(cfgFailed ? 'error' : 'cloud-synced');
 }
 window.addEventListener('firebase-ready', subscribeConfigCloudSync);
 function applyCustomItem(){
