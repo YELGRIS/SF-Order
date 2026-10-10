@@ -53,13 +53,15 @@ font-size:18px;
 input[type="date"]::-webkit-calendar-picker-indicator {
 background: transparent; bottom: 0; color: transparent; cursor: pointer; height: auto; left: 0; position: absolute; right: 0; top: 0; width: auto;
 }
-#orderDate{width:11ch;}
+.date-wrap{position:relative; display:inline-block; min-width:6ch;}
+.date-lbl{display:block; background:rgba(255,255,255,0.95); color:var(--ink); border-radius:var(--radius); padding:2px 5px; font-size:13.5px; font-weight:800; text-align:center; white-space:nowrap; pointer-events:none;}
+#orderDate{position:absolute; left:0; top:0; width:100% !important; height:100%; opacity:0; padding:0;}
 #orderNo{width:6.5ch; text-align:right;}
 .ordnav{display:flex; align-items:center; gap:1px;}
 .ordnav-btn{border:none; border-radius:var(--radius); background:rgba(255,255,255,0.95); color:var(--primary); font-weight:900; font-size:16px; line-height:1; padding:3px 4px; cursor:pointer;}
 .ordnav-btn:active{transform:scale(0.9);}
 .tb-company{flex:1; text-align:center; color:#fff; font-family:'Baloo 2',sans-serif; font-weight:800; font-size:22.5px; letter-spacing:0.2px; text-shadow:1px 1px 0 rgba(0,0,0,0.2); padding:0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-#helpBtn{position:relative; top:unset; left:unset; transform:unset; background:#E53935; color:#fff; border:2px solid #fff; border-radius:50%; width:28px; height:28px; padding:0; font-weight:900; font-size:18px; line-height:1; cursor:pointer; z-index:10; display:flex; align-items:center; justify-content:center; margin:0 auto; box-shadow:0 1px 4px rgba(0,0,0,0.35); font-family:'Inter',sans-serif;}
+#helpBtn{position:relative; top:unset; left:unset; transform:unset; background:#E53935; color:#fff; border:2px solid #fff; border-radius:var(--radius); padding:1px 8px; font-weight:800; font-size:13px; line-height:1.25; white-space:nowrap; width:auto; height:auto; cursor:pointer; z-index:10; display:inline-flex; align-items:center; justify-content:center; margin:0 auto; box-shadow:0 1px 4px rgba(0,0,0,0.35); font-family:'Inter',sans-serif;}
 .editor{width:100%; background:var(--white); border-radius:0; padding:0; box-shadow:none; border:none; display:flex; flex-wrap:wrap;}
 .editor > * {flex-basis: 100%;}
 .editor.locked{ opacity:0.68; filter:grayscale(0.2); }
@@ -83,7 +85,7 @@ input::placeholder, select option{color:var(--secondary); font-weight:600; opaci
 .row2{display:flex; gap:0; align-items:center;}
 .row2{flex-wrap:nowrap;}
 .row2 > input{flex:1 1 0; min-width:0; border-radius:var(--radius);}
-#custPhone{flex:0 0 auto !important; width:12ch; min-width:0;}
+#custPhone{flex:0 0 auto !important; width:calc(10.5ch + 10px); min-width:0;}
 .suggest-box{position:absolute; top:100%; left:0; right:34px; background:#fff; border:1.5px solid var(--secondary); border-radius:var(--radius); box-shadow:0 4px 10px rgba(0,0,0,0.18); z-index:30; max-height:190px; overflow-y:auto; margin-top:1px;}
 .suggest-item{display:block; width:100%; text-align:left; background:#fff; border:none; border-bottom:1px solid #eee; padding:4px 5px; font-size:14.625px; font-weight:700; color:var(--ink); cursor:pointer;}
 .suggest-item:last-child{border-bottom:none;}
@@ -505,9 +507,9 @@ body:not(.log-open) .rb-strip{padding-bottom:env(safe-area-inset-bottom);}
 <div id="cloudStatusBanner" style="display:none; background:#FFF3E0; color:#8a4b00; padding:4px 5px; font-size:12.9375px; font-weight:700; text-align:center; border-bottom:2px solid #FFB300;">⚠️ Not connected to the cloud yet — bills still save on this device, but won't sync. If this file was opened directly from your computer rather than a website, that's usually why.</div>
 <div class="topbar">
 <div class="tb-side">
-<input type="date" id="orderDate" tabindex="1" onchange="refreshOrderNo(); scheduleUpdate();" onkeydown="handleEnterFocus(event, 'orderNo')" onclick="this.showPicker?.(); this.click();">
+<div class="date-wrap"><span class="date-lbl" id="orderDateLbl"></span><input type="date" id="orderDate" tabindex="1" onchange="refreshOrderNo(); scheduleUpdate();" onkeydown="handleEnterFocus(event, 'orderNo')" onclick="this.showPicker?.(); this.click();"></div>
 </div>
-<button id="helpBtn" aria-label="Help" title="Help" onclick="toggleModal('helpModal', true)">?</button>
+<button id="helpBtn" aria-label="Help" onclick="toggleModal('helpModal', true)"><span data-i18n="helpBtnLabel">Help</span></button>
 <div class="tb-side tb-right">
 <div class="ordnav">
 <button type="button" class="ordnav-btn" tabindex="-1" title="Older bill" onclick="cycleOrder(1)">‹</button>
@@ -519,7 +521,7 @@ body:not(.log-open) .rb-strip{padding-bottom:env(safe-area-inset-bottom);}
 <div class="editor">
 <div class="row2" style="margin-bottom:0; position:relative;">
 <input type="text" id="custName" tabindex="3" maxlength="20" data-i18n-placeholder="custNamePlaceholder" placeholder="Customer name (max 20)" oninput="markFormDirty(); showCustomerSuggestions('name');" onfocus="this.select()" onblur="onCustNameBlur()" onkeydown="handleEnterFocus(event, 'custPhone')">
-<input type="tel" id="custPhone" tabindex="4" maxlength="13" data-i18n-placeholder="custPhonePlaceholder" placeholder="Mobile (13 digits)" style="border-radius:var(--radius);" oninput="onPhoneInput(); showCustomerSuggestions('phone');" onfocus="this.select()" onblur="hideCustomerSuggestionsDelayed(); logPhoneValidation(); scheduleUpdate();" onkeydown="handleEnterFocus(event, 'desc_row_1')">
+<input type="tel" id="custPhone" tabindex="4" maxlength="13" data-i18n-placeholder="custPhonePlaceholder" placeholder="Mobile" style="border-radius:var(--radius);" oninput="onPhoneInput(); showCustomerSuggestions('phone');" onfocus="this.select()" onblur="hideCustomerSuggestionsDelayed(); logPhoneValidation(); scheduleUpdate();" onkeydown="handleEnterFocus(event, 'desc_row_1')">
 <div id="custSuggestBox" class="suggest-box" style="display:none;"></div>
 </div>
 <div class="field-hint" id="phoneHint" data-i18n="phoneHint" style="margin-bottom:0;">Optional — required only to send on WhatsApp</div>
@@ -560,7 +562,7 @@ body:not(.log-open) .rb-strip{padding-bottom:env(safe-area-inset-bottom);}
 <div class="action-buttons">
 <button id="btnReset" tabindex="500" onclick="handleActionBtn1()"><span class="ic">↩️</span><span class="lbl">Discard</span></button>
 <button id="btnSave" tabindex="501" onclick="handleActionBtn2()"><span class="ic">💾</span><span class="lbl">Save</span></button>
-<button id="btnPay" tabindex="502" onclick="sendPayment()"><span class="ic">💰</span><span class="lbl">WA Pay</span></button>
+<button id="btnPay" tabindex="502" onclick="printBill()"><span class="ic">🖨️</span><span class="lbl">Print</span></button>
 <button id="btnImage" tabindex="503" onclick="saveAndSendImage()"><span class="ic">🖼️</span><span class="lbl">WA Image</span></button>
 </div>
 <div class="action-image-divider"></div>
@@ -732,7 +734,7 @@ on-screen preview during entry any more. -->
 <li><b>Further Actions:</b>
 <ul>
 <li>Review payment status validation cues (unallocated or over-allocated warnings).</li>
-<li>Click <b>Save</b> to store the bill and download the receipt image. Once the bill is saved (view mode), use <b>WA Pay</b> or <b>WA Image</b> to open WhatsApp — they are disabled while editing.</li>
+<li>Click <b>Save</b> to store the bill and download the receipt image. Once the bill is saved (view mode), use <b>WA Image</b> to open WhatsApp (disabled while editing). <b>Print</b> makes a printable PDF of the current bill.</li>
 </ul>
 </li>
 </ol>
@@ -764,7 +766,7 @@ const $ = id => document.getElementById(id);
 // names) or the exported bill image, which are content, not UI chrome.
 const TRANSLATIONS = {
   custNamePlaceholder: { en: 'Customer name (max 20)', ta: 'கஸ்டமர் பெயர் (max 20)' },
-  custPhonePlaceholder: { en: 'Mobile (13 digits)', ta: 'மொபைல் நம்பர் (13 இலக்கம்)' },
+  custPhonePlaceholder: { en: 'Mobile', ta: 'மொபைல்' },
   phoneHint: { en: 'Optional — required only to send on WhatsApp', ta: 'இது கட்டாயமில்லை — WhatsApp-ல் அனுப்ப மட்டும் வேணும்' },
   thHash: { en: '#', ta: '#' },
   thItem: { en: 'Item', ta: 'ஐட்டம்' },
@@ -791,6 +793,8 @@ const TRANSLATIONS = {
   actSaving: { en: 'Saving', ta: 'சேவ் ஆகுது' },
   actSaved: { en: 'Saved', ta: 'சேவ் ஆகிடுச்சு' },
   actWaPay: { en: 'WA Pay', ta: 'WA பணம்' },
+  actPrint: { en: 'Print', ta: 'பிரிண்ட்' },
+  actPrinting: { en: 'Preparing…', ta: 'தயாராகிறது…' },
   actWaImage: { en: 'WA Image', ta: 'WA படம்' },
   helpModalTitle: { en: 'How to use this app', ta: 'இந்த ஆப்ப எப்படி யூஸ் பண்றது' },
   manageItemsBtn: { en: '🛠 Manage Items', ta: '🛠 ஐட்டம் மேனேஜ்' },
@@ -1259,7 +1263,7 @@ renderPaymentRows(true);
 scheduleUpdate();
 if (!promptOk) return;
 if (need && !recentPayTap()) openNewMethodPicker();
-else if (!need && paymentsFullyAllocated()) setTimeout(() => { const btn = $('btnPay'); if (btn && !btn.disabled) btn.focus(); }, 50);
+else if (!need && paymentsFullyAllocated()) setTimeout(() => { const btn = $('btnSave'); if (btn && !btn.disabled) btn.focus(); }, 50);
 }
 function groupAllocations(list) {
 const m = new Map();
@@ -2339,7 +2343,7 @@ ${gridCellsHtml}`;
 let debounceTimer = null;
 var viewLocked = false;
 var billValid = false;
-function updateWaButtons(){ const ok = viewLocked && billValid; if($('btnPay')) $('btnPay').disabled = !ok; if($('btnImage')) $('btnImage').disabled = !ok; }
+function updateWaButtons(){ const ok = viewLocked && billValid; if($('btnPay')) $('btnPay').disabled = !billValid; if($('btnImage')) $('btnImage').disabled = !ok; }
 function applyContentLock(locked){
 viewLocked = locked;
 const editor = document.querySelector('.editor');
@@ -2446,8 +2450,15 @@ toggleModal('recentBillModal', true);
 }
 function fitPhoneWidth(){
 const p = $('custPhone'); if(!p) return;
-const n = Math.max(12, (p.value || '').length + 2);
-p.style.width = n + 'ch';
+p.style.width = '';
+if(document.activeElement !== p) p.scrollLeft = p.scrollWidth;
+}
+function syncDateLbl(){
+const d = $('orderDate'), l = $('orderDateLbl'); if(!d || !l) return;
+const dt = d.value ? new Date(d.value + 'T00:00:00') : null;
+if(!dt || isNaN(dt)){ l.textContent = '--'; return; }
+const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+l.textContent = pad(dt.getDate()) + mon[dt.getMonth()];
 }
 let guideRaf = 0;
 function pickGuide(){
@@ -2482,7 +2493,14 @@ const opts = { childList:true, characterData:true, subtree:true, attributes:true
 document.addEventListener('focusin', schedGuide);
 document.addEventListener('focusout', schedGuide);
 $('custPhone') && $('custPhone').addEventListener('input', fitPhoneWidth);
-fitPhoneWidth(); pickGuide();
+const dEl = $('orderDate');
+if(dEl){
+const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+Object.defineProperty(dEl, 'value', { configurable:true, get(){ return desc.get.call(this); }, set(v){ desc.set.call(this, v); syncDateLbl(); } });
+dEl.addEventListener('change', syncDateLbl); dEl.addEventListener('input', syncDateLbl);
+}
+$('custPhone') && $('custPhone').addEventListener('blur', fitPhoneWidth);
+syncDateLbl(); fitPhoneWidth(); pickGuide();
 }
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initBottomLayout); else initBottomLayout();
 function renderScanPayPanel(data){
@@ -2660,7 +2678,7 @@ return null;
 return phone;
 }
 const ACTION_DEFAULTS = {
-btnPay:   { icon: '💰', text: 'actWaPay' },
+btnPay:   { icon: '🖨️', text: 'actPrint' },
 btnImage: { icon: '🖼️', text: 'actWaImage' }
 };
 function setActionLabel(btnId, icon, textKey){
@@ -2712,6 +2730,129 @@ cleanup();
 if(!left && !document.hidden && webUrl !== appUrl){ logMsg('WhatsApp app did not respond — using web link.'); window.location.href = webUrl; }
 }, 2000);
 window.location.href = appUrl;
+}
+function printSheetHtml(data, nonCash){
+const C = '#0B5E64', L = '#E7F6F6', Z = '#F6FAFA', B = '#DCE9E9', T = '#1b2a2c', M = '#5a6b6d';
+const co = CONFIG.company || {};
+const words = String(data.amountWords || '').replace(/^Order Value:\s*/i, '');
+const th = (t, al, w) => `<th style="width:${w}; padding:8px 10px; text-align:${al}; font-size:10.5px; letter-spacing:0.8px; text-transform:uppercase; color:${C}; background:${L}; border-bottom:2px solid ${C};">${t}</th>`;
+const td = (v, al, extra) => `<td style="padding:8px 10px; text-align:${al}; border-bottom:1px solid ${B}; ${extra || ''}">${v}</td>`;
+const rowsHtml = data.rows.map((r, i) => `<tr style="background:${i % 2 ? Z : '#fff'};">${td(i + 1, 'center', 'color:' + M + ';')}${td(esc(r.desc), 'left', 'font-weight:600;')}${td(r.qty, 'center')}${td(r.freeVal > 0 ? r.freeVal : '-', 'center')}${td(r.rate, 'right')}${td(r.amt, 'right', 'font-weight:800;')}</tr>`).join('');
+const foot = `<tr style="background:${L}; font-weight:800;">${td(data.itemCount, 'center', 'border-bottom:none; color:' + C + ';')}${td('Total', 'left', 'border-bottom:none; color:' + C + ';')}${td(data.totalQty, 'center', 'border-bottom:none;')}${td(data.totalFree > 0 ? data.totalFree : '-', 'center', 'border-bottom:none;')}${td('', 'right', 'border-bottom:none;')}${td(data.subtotalVal, 'right', 'border-bottom:none; font-size:15px;')}</tr>`;
+const discRow = data.discountVal > 0 ? `<div style="display:flex; justify-content:space-between; padding:5px 0; color:${M};"><span>${esc(data.discountLabelText)}</span><span style="font-weight:700; color:${T};">${data.discountOp === '+' ? '+' : '−'} ${data.discountVal}</span></div>` : '';
+const payRows = data.paymentAllocations.map((a, i) => `<tr style="background:${i % 2 ? Z : '#fff'};">${td(i + 1, 'center', 'color:' + M + ';')}${td(esc(a.receiver ? a.receiver.name : '—'), 'left', 'font-weight:600;')}${td(esc((a.receiver && a.receiver.upi) || ''), 'left', 'color:' + M + '; font-size:12px;')}${td(a.amount, 'right', 'font-weight:800;')}</tr>`).join('');
+const payHtml = payRows ? `<div style="margin-top:22px;"><div style="font-size:11px; font-weight:800; letter-spacing:1.2px; color:${C}; text-transform:uppercase; padding-bottom:6px; border-bottom:2px solid ${C};">Payment Details</div><table style="width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed;"><thead><tr>${th('#', 'center', '8%')}${th('Method', 'left', '32%')}${th('UPI ID', 'left', '40%')}${th('Amount', 'right', '20%')}</tr></thead><tbody>${payRows}</tbody></table></div>` : '';
+const qrHtml = nonCash.length ? `<div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:18px;">${nonCash.map((a, i) => `<div style="width:168px; text-align:center; border:1px solid ${B}; border-radius:10px; padding:10px 8px; background:#fff;"><div id="prQr_${i}" style="height:132px; display:flex; align-items:center; justify-content:center;"></div><div style="font-weight:800; font-size:12.5px; margin-top:6px;">${esc(a.receiver.name)}</div><div style="font-size:11px; color:${M};">Scan to pay · ${a.amount}</div></div>`).join('')}</div>` : '';
+return `<div style="width:794px; min-height:1123px; box-sizing:border-box; display:flex; flex-direction:column; background:#fff; color:${T}; font-family:'Inter',Arial,sans-serif;">
+<div style="background:${C}; color:#fff; padding:28px 40px; display:flex; justify-content:space-between; align-items:flex-start;">
+<div style="flex:1; min-width:0; padding-right:20px;"><div style="font-size:26px; font-weight:900; letter-spacing:0.5px; line-height:1.15;">${esc(co.name || '')}</div><div style="font-size:12px; opacity:0.88; margin-top:6px; line-height:1.4;">${esc(co.address || '')}</div></div>
+<div style="flex:0 0 auto; text-align:right; font-size:30px; font-weight:300; letter-spacing:6px; line-height:1;">BILL</div>
+</div>
+<div style="height:5px; background:#FF9F1C;"></div>
+<div style="flex:1; padding:26px 40px 10px;">
+<div style="display:flex; gap:16px; margin-bottom:22px;">
+<div style="flex:1.4; background:${Z}; border:1px solid ${B}; border-radius:10px; padding:12px 16px;"><div style="font-size:10px; letter-spacing:1.2px; color:${M}; font-weight:800;">BILLED TO</div><div style="font-size:19px; font-weight:800; margin-top:4px;">${esc(data.custName)}</div>${data.custPhone ? `<div style="font-size:13px; color:${M}; margin-top:2px;">${esc(data.custPhone)}</div>` : ''}</div>
+<div style="flex:1; background:${Z}; border:1px solid ${B}; border-radius:10px; padding:12px 16px;"><div style="display:flex; justify-content:space-between;"><span style="font-size:10px; letter-spacing:1.2px; color:${M}; font-weight:800;">BILL NO</span><span style="font-weight:800; font-size:15px;">#${esc(data.orderNo)}</span></div><div style="display:flex; justify-content:space-between; margin-top:8px;"><span style="font-size:10px; letter-spacing:1.2px; color:${M}; font-weight:800;">DATE</span><span style="font-weight:800; font-size:15px;">${esc(data.date)}</span></div></div>
+</div>
+<table style="width:100%; border-collapse:collapse; font-size:13.5px; table-layout:fixed;"><thead><tr>${th('#', 'center', '7%')}${th('Item', 'left', '43%')}${th('Qty', 'center', '10%')}${th('Free', 'center', '10%')}${th('Rate', 'right', '14%')}${th('Amount', 'right', '16%')}</tr></thead><tbody>${rowsHtml}${foot}</tbody></table>
+<div style="display:flex; gap:20px; margin-top:20px; align-items:stretch;">
+<div style="flex:1; border:1px dashed ${B}; border-radius:10px; padding:12px 14px;"><div style="font-size:10px; letter-spacing:1.2px; color:${M}; font-weight:800;">AMOUNT IN WORDS</div><div style="font-size:14px; font-weight:700; margin-top:6px; line-height:1.4; color:${C};">${esc(words)}</div></div>
+<div style="width:280px; font-size:13.5px;"><div style="display:flex; justify-content:space-between; padding:5px 0; color:${M};"><span>Sub Total</span><span style="font-weight:700; color:${T};">${data.subtotalVal}</span></div>${discRow}<div style="display:flex; justify-content:space-between; align-items:center; background:${C}; color:#fff; border-radius:8px; padding:10px 14px; margin-top:6px;"><span style="font-size:12px; letter-spacing:1px; font-weight:700;">TOTAL</span><span style="font-size:22px; font-weight:900;">${data.orderAmountVal}</span></div></div>
+</div>
+${payHtml}${qrHtml}
+</div>
+<div style="background:${L}; border-top:2px solid ${C}; padding:14px 40px; text-align:center;"><div style="font-size:14px; font-weight:800; color:${C};">Thank you for your business!</div><div style="font-size:10px; color:${M}; margin-top:3px;">This is a computer-generated bill and does not require a signature. All amounts are in Indian Rupees (INR).</div></div>
+</div>`;
+}
+function buildPdfBlob(imgs){
+const enc = new TextEncoder();
+const parts = []; let len = 0; const offs = [];
+const add = d => { const u = typeof d === 'string' ? enc.encode(d) : d; parts.push(u); len += u.length; };
+const PW = 595.28, PH = 841.89, n = imgs.length;
+add('%PDF-1.4\n');
+offs[1] = len; add('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+offs[2] = len; add(`2 0 obj\n<< /Type /Pages /Kids [${imgs.map((_, i) => (3 + i * 3) + ' 0 R').join(' ')}] /Count ${n} >>\nendobj\n`);
+imgs.forEach((im, i) => {
+const pid = 3 + i * 3, cid = pid + 1, iid = pid + 2;
+const content = `q ${PW} 0 0 ${PH} 0 0 cm /Im0 Do Q`;
+offs[pid] = len; add(`${pid} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im0 ${iid} 0 R >> >> /Contents ${cid} 0 R >>\nendobj\n`);
+offs[cid] = len; add(`${cid} 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`);
+offs[iid] = len; add(`${iid} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>\nstream\n`);
+add(im.bytes); add('\nendstream\nendobj\n');
+});
+const total = 2 + n * 3, xref = len;
+let x = `xref\n0 ${total + 1}\n0000000000 65535 f \n`;
+for(let k = 1; k <= total; k++) x += String(offs[k]).padStart(10, '0') + ' 00000 n \n';
+x += `trailer\n<< /Size ${total + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+add(x);
+return new Blob(parts, { type:'application/pdf' });
+}
+async function canvasToPdfBlob(canvas){
+const pw = canvas.width, ph = Math.round(canvas.width * 297 / 210);
+const tolerance = canvas.height <= ph * 1.04;
+const pages = tolerance ? 1 : Math.ceil(canvas.height / ph);
+const imgs = [];
+for(let p = 0; p < pages; p++){
+const c = document.createElement('canvas'); c.width = pw; c.height = ph;
+const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, pw, ph);
+if(tolerance){
+const k = Math.min(1, ph / canvas.height);
+ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, canvas.width * k, canvas.height * k);
+} else {
+const sy = p * ph, sh = Math.min(ph, canvas.height - sy);
+ctx.drawImage(canvas, 0, sy, pw, sh, 0, 0, pw, sh);
+}
+const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+imgs.push({ bytes:new Uint8Array(await blob.arrayBuffer()), w:pw, h:ph });
+}
+return buildPdfBlob(imgs);
+}
+async function buildBillPdfBlob(data){
+if(typeof html2canvas === 'undefined') throw new Error('PDF engine not loaded yet — check the internet connection and try again.');
+const nonCash = data.paymentAllocations.filter(a => a.receiver && a.receiver.upi);
+const sheet = document.createElement('div');
+sheet.style.cssText = 'position:fixed; left:100vw; top:0; width:794px; background:#fff; z-index:-1;';
+sheet.innerHTML = printSheetHtml(data, nonCash);
+document.body.appendChild(sheet);
+try{
+nonCash.forEach((a, i) => {
+const slot = sheet.querySelector('#prQr_' + i);
+if(slot) generateQr(slot, buildUpiUrlFor(a.receiver, a.amount, data.custName), 128, '#000000');
+});
+if(typeof document.fonts !== 'undefined') await document.fonts.ready;
+const canvas = await Promise.race([
+html2canvas(sheet, { scale:2, backgroundColor:'#ffffff', useCORS:true, allowTaint:true }),
+new Promise((_, rej) => setTimeout(() => rej(new Error('PDF rendering timed out.')), 25000))
+]);
+return await canvasToPdfBlob(canvas);
+} finally { sheet.remove(); }
+}
+async function printBill(){
+const btn = $('btnPay');
+if(!btn || btn.disabled) return;
+let w = null;
+try{ w = window.open('', '_blank'); if(w) w.document.write('<title>Bill</title><p style="font-family:sans-serif;padding:16px">Preparing PDF…</p>'); }catch(e){ w = null; }
+btn.disabled = true;
+setActionLabel('btnPay', '⏳', 'actPrinting');
+try{
+const data = await collectData();
+if(!data.rows.length){ logMsg('Add at least one item before printing.', true); if(w) w.close(); return; }
+logMsg('Generating printable PDF…');
+const blob = await buildBillPdfBlob(data);
+const url = URL.createObjectURL(blob);
+if(w && !w.closed){ w.location.href = url; logMsg('PDF ready — use the viewer to print or save.'); }
+else {
+const a = document.createElement('a'); a.href = url; a.download = `Bill_${data.orderNo || 'order'}.pdf`;
+document.body.appendChild(a); a.click(); a.remove();
+logMsg('PDF downloaded — open it to print.');
+}
+setTimeout(() => URL.revokeObjectURL(url), 120000);
+}catch(e){
+logMsg('Print error: ' + e.message, true);
+try{ if(w) w.close(); }catch(_){}
+}
+btn.disabled = !billValid;
+resetActionLabel('btnPay');
 }
 async function sendPayment(){
 await runBillAndImageFlow('btnPay', (data, phone) => {
