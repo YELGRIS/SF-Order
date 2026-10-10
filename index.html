@@ -59,7 +59,7 @@ background: transparent; bottom: 0; color: transparent; cursor: pointer; height:
 .ordnav-btn{border:none; border-radius:var(--radius); background:rgba(255,255,255,0.95); color:var(--primary); font-weight:900; font-size:16px; line-height:1; padding:3px 4px; cursor:pointer;}
 .ordnav-btn:active{transform:scale(0.9);}
 .tb-company{flex:1; text-align:center; color:#fff; font-family:'Baloo 2',sans-serif; font-weight:800; font-size:22.5px; letter-spacing:0.2px; text-shadow:1px 1px 0 rgba(0,0,0,0.2); padding:0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-#helpBtn{position:relative; top:unset; left:unset; transform:unset; background:var(--accent); color:#1a1200; border:none; border-radius:var(--radius); padding:3px 7px; font-weight:800; font-size:13.5px; cursor:pointer; z-index:10; white-space:nowrap; display:flex; align-items:center; gap:2px; margin:0 auto;}
+#helpBtn{position:relative; top:unset; left:unset; transform:unset; background:#E53935; color:#fff; border:2px solid #fff; border-radius:50%; width:28px; height:28px; padding:0; font-weight:900; font-size:18px; line-height:1; cursor:pointer; z-index:10; display:flex; align-items:center; justify-content:center; margin:0 auto; box-shadow:0 1px 4px rgba(0,0,0,0.35); font-family:'Inter',sans-serif;}
 .editor{width:100%; background:var(--white); border-radius:0; padding:0; box-shadow:none; border:none; display:flex; flex-wrap:wrap;}
 .editor > * {flex-basis: 100%;}
 .editor.locked{ opacity:0.68; filter:grayscale(0.2); }
@@ -81,7 +81,9 @@ position:relative; z-index:40;
 }
 input::placeholder, select option{color:var(--secondary); font-weight:600; opacity:0.7;}
 .row2{display:flex; gap:0; align-items:center;}
-.row2 > input{flex:1; border-radius:var(--radius);}
+.row2{flex-wrap:nowrap;}
+.row2 > input{flex:1 1 0; min-width:0; border-radius:var(--radius);}
+#custPhone{flex:0 0 auto !important; width:12ch; min-width:0;}
 .suggest-box{position:absolute; top:100%; left:0; right:34px; background:#fff; border:1.5px solid var(--secondary); border-radius:var(--radius); box-shadow:0 4px 10px rgba(0,0,0,0.18); z-index:30; max-height:190px; overflow-y:auto; margin-top:1px;}
 .suggest-item{display:block; width:100%; text-align:left; background:#fff; border:none; border-bottom:1px solid #eee; padding:4px 5px; font-size:14.625px; font-weight:700; color:var(--ink); cursor:pointer;}
 .suggest-item:last-child{border-bottom:none;}
@@ -354,7 +356,7 @@ gap:2px; padding:4px; border:1.5px dashed var(--primary); border-radius:12px;
 .scan-pay-card .spc-amount{ font-weight:900; font-size:16.875px; color:var(--primary); text-align:center; }
 #formMsg{
 display:none;
-position:fixed; left:0; right:0; bottom:0; z-index:80;
+position:relative; width:100%; flex:0 0 auto;
 background:rgba(255,255,255,0.98); border-top:1.5px solid var(--primary);
 font-family:'Roboto Mono',monospace; font-size:11.8125px; line-height:1.35; color:var(--ink);
 text-align:left; box-sizing:border-box; padding:1px 3px;
@@ -365,8 +367,8 @@ transition:height 0.18s ease; outline:none;
 }
 #formMsg:focus{ height:42vh; }
 body.log-open #formMsg{display:block;}
-.log-toggle{position:fixed; left:8px; bottom:calc(8px + env(safe-area-inset-bottom)); z-index:90; width:26px; height:26px; border-radius:50%; border:1px solid var(--primary); background:rgba(255,255,255,0.85); font-size:14.625px; line-height:1; padding:0; opacity:0.55; cursor:pointer;}
-body.log-open .log-toggle{bottom:calc(2 * 1.35 * 13.125px + 10px + env(safe-area-inset-bottom)); opacity:0.9;}
+.log-toggle{position:fixed; left:8px; bottom:calc(var(--dock-h,0px) + 8px + env(safe-area-inset-bottom)); z-index:90; width:26px; height:26px; border-radius:50%; border:1px solid var(--primary); background:rgba(255,255,255,0.85); font-size:14.625px; line-height:1; padding:0; opacity:0.55; cursor:pointer;}
+body.log-open .log-toggle{opacity:0.9;}
 #formMsg .log-line{white-space:pre-wrap; word-break:break-word; padding:0.5px 0; border-bottom:1px dashed #eef3f3;}
 #formMsg .log-line:last-child{border-bottom:none;}
 #formMsg .log-err{color:var(--danger); font-weight:800;}
@@ -394,8 +396,7 @@ transition:background-color 0.25s ease, color 0.25s ease;
 .sync-indicator.sync-cloud-synced{color:#1B8A4B;}
 .sync-indicator.sync-error{color:#c0392b;}
 @keyframes syncPulse{0%,100%{opacity:1; transform:scale(1);} 50%{opacity:0.55; transform:scale(1.2);}}
-body{padding-bottom:calc(40px + env(safe-area-inset-bottom));}
-body.log-open{padding-bottom:calc(2 * 1.35 * 13.125px + 16px + env(safe-area-inset-bottom));}
+body{padding-bottom:calc(var(--dock-h,0px) + 40px + env(safe-area-inset-bottom));}
 .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:0;}
 .modal-box{background:#fff; border-radius:var(--radius); padding:0; max-height:85vh; overflow-y:auto; width:100%; font-weight:700; box-shadow:none; display:flex; flex-direction:column;}
 .modal-box h3{font-family:'Baloo 2',sans-serif; color:var(--primary); margin:0; padding:4px 4px 1.5px; font-size:20.25px;}
@@ -483,13 +484,17 @@ table.items tfoot td{padding:0.8px 0.4px;}
 .recent-bill td.rb-amt{width:19%; text-align:right; font-weight:900; font-family:'Roboto Mono',monospace;}
 .recent-bill .rb-foot{display:flex; gap:6px; justify-content:space-between; padding:2px 4px; border-top:1px solid #e6efef; font-size:13.5px; font-weight:700; color:#5a6b6d;}
 .recent-bill .rb-foot span:first-child{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.rb-strip{display:none; position:fixed; left:0; right:0; z-index:79; gap:3px; padding:2px 3px 2px 38px; box-sizing:border-box; bottom:env(safe-area-inset-bottom); background:rgba(255,255,255,0.97); border-top:1.5px solid var(--primary);}
-body.log-open .rb-strip{bottom:calc(2 * 1.35 * 11.8125px + 4px + env(safe-area-inset-bottom));}
+.editor > .field-hint{display:none !important;}
+.guide-row{width:100%; box-sizing:border-box; padding:2px 4px; white-space:nowrap; overflow:hidden; font-size:12.5px; line-height:1.3; font-weight:700; color:#5a6b6d; background:#fff; text-align:left; min-height:calc(1.3em + 4px); border-top:1px solid #e6efef;}
+.guide-row.ok{color:#1a7d3a; font-weight:800;}
+.guide-row.warn{color:var(--danger); font-weight:800;}
+#bottomDock{position:fixed; left:0; right:0; bottom:0; z-index:80; display:flex; flex-direction:column;}
+.rb-strip{display:none; flex:0 0 auto; width:100%; gap:0; padding:0; box-sizing:border-box; background:var(--primary-light); border-top:1.5px solid var(--primary);}
 body.rb-on .rb-strip{display:flex;}
-body.rb-on{padding-bottom:calc(92px + env(safe-area-inset-bottom));}
-body.rb-on.log-open{padding-bottom:calc(2 * 1.35 * 13.125px + 60px + env(safe-area-inset-bottom));}
-.rb-card{flex:1 1 0; min-width:0; display:grid; grid-template-columns:1fr auto; column-gap:4px; align-items:center; text-align:left; border:1.5px solid var(--primary); border-radius:var(--radius); background:var(--primary-light); color:var(--ink); padding:2px 5px; cursor:pointer; font-family:'Inter',sans-serif;}
-.rb-card:active{transform:scale(0.98);}
+body:not(.log-open) .rb-strip{padding-bottom:env(safe-area-inset-bottom);}
+.rb-card{flex:1 1 0; min-width:0; display:grid; grid-template-columns:1fr auto; column-gap:4px; align-items:center; text-align:left; border:none; border-right:1px solid var(--primary); border-radius:0; background:transparent; color:var(--ink); padding:3px 6px; cursor:pointer; font-family:'Inter',sans-serif;}
+.rb-card:last-child{border-right:none;}
+.rb-card:active{background:rgba(0,0,0,0.07);}
 .rb-card .rbc-top{font-size:11.5px; font-weight:800; color:var(--primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .rb-card .rbc-amt{font-family:'Roboto Mono',monospace; font-size:15px; font-weight:900; color:var(--primary);}
 .rb-card .rbc-items{grid-column:1 / -1; font-size:11.5px; font-weight:600; color:#5a6b6d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -502,7 +507,7 @@ body.rb-on.log-open{padding-bottom:calc(2 * 1.35 * 13.125px + 60px + env(safe-ar
 <div class="tb-side">
 <input type="date" id="orderDate" tabindex="1" onchange="refreshOrderNo(); scheduleUpdate();" onkeydown="handleEnterFocus(event, 'orderNo')" onclick="this.showPicker?.(); this.click();">
 </div>
-<button id="helpBtn" onclick="toggleModal('helpModal', true)"><span>❓</span><span data-i18n="helpBtnLabel">Help</span></button>
+<button id="helpBtn" aria-label="Help" title="Help" onclick="toggleModal('helpModal', true)">?</button>
 <div class="tb-side tb-right">
 <div class="ordnav">
 <button type="button" class="ordnav-btn" tabindex="-1" title="Older bill" onclick="cycleOrder(1)">‹</button>
@@ -514,7 +519,7 @@ body.rb-on.log-open{padding-bottom:calc(2 * 1.35 * 13.125px + 60px + env(safe-ar
 <div class="editor">
 <div class="row2" style="margin-bottom:0; position:relative;">
 <input type="text" id="custName" tabindex="3" maxlength="20" data-i18n-placeholder="custNamePlaceholder" placeholder="Customer name (max 20)" oninput="markFormDirty(); showCustomerSuggestions('name');" onfocus="this.select()" onblur="onCustNameBlur()" onkeydown="handleEnterFocus(event, 'custPhone')">
-<input type="tel" id="custPhone" tabindex="4" maxlength="13" data-i18n-placeholder="custPhonePlaceholder" placeholder="Mobile (13 digits)" style="flex:0 0 130px; border-radius:var(--radius);" oninput="onPhoneInput(); showCustomerSuggestions('phone');" onfocus="this.select()" onblur="hideCustomerSuggestionsDelayed(); logPhoneValidation(); scheduleUpdate();" onkeydown="handleEnterFocus(event, 'desc_row_1')">
+<input type="tel" id="custPhone" tabindex="4" maxlength="13" data-i18n-placeholder="custPhonePlaceholder" placeholder="Mobile (13 digits)" style="border-radius:var(--radius);" oninput="onPhoneInput(); showCustomerSuggestions('phone');" onfocus="this.select()" onblur="hideCustomerSuggestionsDelayed(); logPhoneValidation(); scheduleUpdate();" onkeydown="handleEnterFocus(event, 'desc_row_1')">
 <div id="custSuggestBox" class="suggest-box" style="display:none;"></div>
 </div>
 <div class="field-hint" id="phoneHint" data-i18n="phoneHint" style="margin-bottom:0;">Optional — required only to send on WhatsApp</div>
@@ -551,7 +556,7 @@ body.rb-on.log-open{padding-bottom:calc(2 * 1.35 * 13.125px + 60px + env(safe-ar
 <div class="field-hint" id="paymentStatus" data-i18n="paymentStatusDefault">Add items to determine the order amount.</div>
 <div id="paymentQrPreview" class="payment-qr-preview"></div>
 </div>
-<div class="rb-strip" id="recentBillPanel"></div>
+<div class="guide-row" id="guideRow"></div>
 <div class="action-buttons">
 <button id="btnReset" tabindex="500" onclick="handleActionBtn1()"><span class="ic">↩️</span><span class="lbl">Discard</span></button>
 <button id="btnSave" tabindex="501" onclick="handleActionBtn2()"><span class="ic">💾</span><span class="lbl">Save</span></button>
@@ -571,7 +576,7 @@ the brief moment it's captured to a PNG (Save / WA Pay / WA Image) —
 see buildFullBillCard()/captureFullBillCardBlob(). It's never the live
 on-screen preview during entry any more. -->
 <div class="image-wrap" id="imageWrap" style="display:none;"><div id="orderImage"></div></div>
-<div id="formMsg" tabindex="600" aria-label="Activity log"></div>
+<div id="bottomDock"><div class="rb-strip" id="recentBillPanel"></div><div id="formMsg" tabindex="600" aria-label="Activity log"></div></div>
 <button type="button" class="log-toggle" id="logToggle" tabindex="-1" aria-label="Show or hide activity log" onclick="toggleLog()">📋</button>
 <div id="cloudSyncIndicator" class="sync-indicator sync-local-synced" title="Local cache loaded">◉</div>
 <!-- Modals -->
@@ -808,7 +813,7 @@ function applyLanguage(){
     const t = TRANSLATIONS[el.dataset.i18nPlaceholder];
     if(t) el.placeholder = t[currentLang] || t.en;
   });
-  try{ if(typeof renderRecentBill === 'function') renderRecentBill(true); }catch(e){}
+  try{ if(typeof renderRecentBill === 'function') renderRecentBill(true); if(typeof schedGuide === 'function') schedGuide(); }catch(e){}
   const toggleLabel = $('langToggleLabel');
   if(toggleLabel) toggleLabel.textContent = currentLang === 'en' ? 'தமிழ்' : 'English';
   // Dynamic action-button captions aren't plain text nodes (see
@@ -2377,7 +2382,7 @@ debounceTimer = setTimeout(updateLivePreview, 400);
 async function updateLivePreview(){
 const data = await collectData();
 updateEditorSummary(data);
-try{ renderRecentBill(); }catch(e){}
+try{ renderRecentBill(); fitPhoneWidth(); schedGuide(); }catch(e){}
 const unassignedExists = data.paymentAllocations.some(a => a.receiver === null);
 const diff = data.orderAmountVal - Math.round(data.totalAllocated);
 const isValid = data.orderAmountVal > 0 && diff === 0 && data.rows.length > 0 && !unassignedExists;
@@ -2439,6 +2444,47 @@ const who = [o.custName, o.custPhone].filter(Boolean).map(esc).join(' · ');
 $('recentBillModalBody').innerHTML = `<div class="recent-bill"><div class="rb-head"><span class="rb-title">${esc(tr('recentBillTitle'))}</span><span class="rb-meta">${ddMmm(o.dateISO)} · #${esc(o.orderNo || '')}</span><span class="rb-total">${Math.round(o.orderAmountVal || 0)}</span></div>${who ? `<div class="rb-foot" style="color:var(--ink);"><span>${who}</span></div>` : ''}<table><tbody>${rows}</tbody></table>${foot}</div>`;
 toggleModal('recentBillModal', true);
 }
+function fitPhoneWidth(){
+const p = $('custPhone'); if(!p) return;
+const n = Math.max(12, (p.value || '').length + 2);
+p.style.width = n + 'ch';
+}
+let guideRaf = 0;
+function pickGuide(){
+const g = $('guideRow'); if(!g) return;
+const ps = $('paymentStatus'), ph = $('phoneHint');
+if(!ps || !ph) return;
+const ae = document.activeElement;
+const inCust = ae && (ae.id === 'custName' || ae.id === 'custPhone');
+const inDisc = ae && ae.closest && ae.closest('.discount-row');
+const inItems = ae && ae.closest && ae.closest('table.items');
+let src;
+if(inCust) src = ph;
+else if(ph.classList.contains('warn')) src = ph;
+else if(ps.classList.contains('warn')) src = ps;
+else if(inDisc) src = document.querySelector('[data-i18n="discountHint"]');
+else if(inItems) src = document.querySelector('[data-i18n="rateHint"]');
+else src = ps;
+g.textContent = (src && src.textContent) || '';
+g.className = 'guide-row' + (src && src.classList.contains('ok') ? ' ok' : src && src.classList.contains('warn') ? ' warn' : '');
+fitTextToWidth(g, 12.5, 8);
+}
+function schedGuide(){ cancelAnimationFrame(guideRaf); guideRaf = requestAnimationFrame(pickGuide); }
+function initBottomLayout(){
+const dock = $('bottomDock');
+if(dock){
+const setH = () => document.documentElement.style.setProperty('--dock-h', dock.offsetHeight + 'px');
+if(window.ResizeObserver) new ResizeObserver(setH).observe(dock); else setInterval(setH, 500);
+setH();
+}
+const opts = { childList:true, characterData:true, subtree:true, attributes:true };
+['paymentStatus', 'phoneHint'].forEach(id => { const el = $(id); if(el) new MutationObserver(schedGuide).observe(el, opts); });
+document.addEventListener('focusin', schedGuide);
+document.addEventListener('focusout', schedGuide);
+$('custPhone') && $('custPhone').addEventListener('input', fitPhoneWidth);
+fitPhoneWidth(); pickGuide();
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initBottomLayout); else initBottomLayout();
 function renderScanPayPanel(data){
 const panel = $('scanPayPanel'), grid = $('scanPayGrid');
 const nonCash = data ? data.paymentAllocations.filter(a => a.receiver && a.receiver.upi) : [];
@@ -2682,7 +2728,15 @@ return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 });
 }
 async function saveAndSendImage(){
-await runBillAndImageFlow('btnImage', (data, phone) => `https://wa.me/${phone}`);
+await runBillAndImageFlow('btnImage', (data, phone) => {
+const ids = [];
+(data.paymentAllocations || []).forEach(a => {
+const u = a.receiver && a.receiver.upi;
+if(u && (a.amount || 0) > 0 && !ids.includes(u)) ids.push(u);
+});
+const text = ids.length ? 'UPI ID\n' + ids.join('\n') : '';
+return `https://wa.me/${phone}` + (text ? '?text=' + encodeURIComponent(text) : '');
+});
 }
 let currentOrderId = null;
 let isDirty = true; // true = current form doesn't match a saved bill yet
