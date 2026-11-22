@@ -5,9 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>SREE FOUNDATION — Ordering</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Inter:wght@500;700;800;900&family=Noto+Sans+Tamil:wght@600&family=Roboto+Mono:wght@700&family=Great+Vibes&display=swap" rel="stylesheet" crossorigin="anonymous">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<meta name="theme-color" content="#0B5E64">
+<meta name="description" content="SREE FOUNDATION ordering and billing — fast entry, payment allocation, UPI QR, WhatsApp and print output. Works offline.">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-512.png">
+<!-- Font CSS used to be render-blocking (first paint waited on it). It is now
+     loaded asynchronously via the media=print/onload swap trick, with a
+     <noscript> fallback; text renders immediately in a fallback face and
+     swaps in (display=swap) without blocking startup. -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Inter:wght@500;700;800;900&family=Noto+Sans+Tamil:wght@600&family=Roboto+Mono:wght@700&family=Great+Vibes&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Inter:wght@500;700;800;900&family=Noto+Sans+Tamil:wght@600&family=Roboto+Mono:wght@700&family=Great+Vibes&display=swap" rel="stylesheet" media="print" onload="this.media='all'" crossorigin="anonymous">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Inter:wght@500;700;800;900&family=Noto+Sans+Tamil:wght@600&family=Roboto+Mono:wght@700&family=Great+Vibes&display=swap" rel="stylesheet"></noscript>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- html2canvas (~200KB) is deliberately NOT downloaded up front: it is
+     warm-loaded during idle time and on demand (see ensureHtml2Canvas),
+     keeping startup fast on slow mobile data. -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
@@ -1143,8 +1158,28 @@ ctx.restore();
 return out;
 }
 const TARGET_IMAGE_WIDTH_PX = 1080;
+// html2canvas was removed from the startup critical path (see the <head>
+// comment): it is fetched here on first use, and proactively warmed up
+// during idle time, so a Save/Print rarely waits on a fresh download.
+let html2CanvasPromise = null;
+function ensureHtml2Canvas(){
+  if (typeof html2canvas !== 'undefined') return Promise.resolve();
+  if (!html2CanvasPromise) {
+    html2CanvasPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload = resolve;
+      s.onerror = () => { html2CanvasPromise = null; reject(new Error('Image engine failed to load — check the internet connection and try again.')); };
+      document.head.appendChild(s);
+    });
+  }
+  return html2CanvasPromise;
+}
+if ('requestIdleCallback' in window) requestIdleCallback(() => { ensureHtml2Canvas().catch(() => {}); }, { timeout: 8000 });
+else setTimeout(() => { ensureHtml2Canvas().catch(() => {}); }, 2500);
 async function captureBillImageBlob(node){
-const cssWidth = node.getBoundingClientRect().width || node.offsetWidth || 1;
+  await ensureHtml2Canvas();
+  const cssWidth = node.getBoundingClientRect().width || node.offsetWidth || 1;
 const scale = TARGET_IMAGE_WIDTH_PX / cssWidth;
 const raw = await html2canvas(node, { scale, backgroundColor:null, useCORS:true, allowTaint:true });
 const finished = applyRoundedBezel(raw, Math.round(1.5 * scale), Math.round(18 * scale));
@@ -2951,6 +2986,7 @@ imgs.push({ bytes:new Uint8Array(await blob.arrayBuffer()), w:pw, h:ph });
 return buildPdfBlob(imgs);
 }
 async function buildBillPdfBlob(data){
+await ensureHtml2Canvas(); // shared lazy loader — replaces the old hard failure when the engine wasn't preloaded
 if(typeof html2canvas === 'undefined') throw new Error('PDF engine not loaded yet — check the internet connection and try again.');
 const nonCash = data.paymentAllocations.filter(a => a.receiver && a.receiver.upi);
 const sheet = document.createElement('div');
@@ -3458,6 +3494,17 @@ showCustomerSuggestions=function(source){
 updateWaButtons();
 jit();
 })();
+</script>
+<script>
+// ---- PWA: installable + fully offline-capable (see manifest.json / sw.js) ----
+// Registered after load so it never competes with first paint. Failures are
+// silent: without a service worker the app still works, just without the
+// offline shell.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function () {});
+  });
+}
 </script>
 </body>
 </html>

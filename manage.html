@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Manage Fixed Inputs</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B5E64">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--primary:#0B5E64;--primary-light:#E7F6F6;--danger:#c0392b;--white:#fff;--radius:10px;box-sizing:border-box}*{box-sizing:inherit}body{margin:0;padding:0;background:linear-gradient(180deg,var(--primary) 0,var(--primary-light) 40%);font-family:Inter,sans-serif;min-height:100vh}.header{background:var(--primary);color:#fff;padding:16px;display:flex;justify-content:space-between;align-items:center}.header h1{margin:0;font-size:20px;font-weight:800}.header button{background:var(--white);color:var(--primary);border:0;padding:8px 16px;border-radius:var(--radius);font-weight:700;cursor:pointer}.container{max-width:900px;margin:20px auto;padding:0 16px 80px}.tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}.tab{flex:1;min-width:120px;padding:12px;background:var(--white);border:2px solid transparent;border-radius:var(--radius);font-weight:700;cursor:pointer;text-align:center}.tab.active{border-color:var(--primary);background:var(--primary-light)}.panel{display:none;background:var(--white);border-radius:var(--radius);padding:16px}.panel.active{display:block}.panel h2{margin-top:0;color:var(--primary);font-size:18px}.form-row{display:flex;gap:12px;margin-bottom:12px}.form-row>div{flex:1}label{display:block;font-size:12px;font-weight:700;margin-bottom:4px}input,textarea{width:100%;border:1px solid #cfd8dc;border-radius:6px;padding:8px;font-size:14px}input:focus,textarea:focus{outline:none;border-color:var(--primary)}textarea{min-height:80px;resize:vertical}.btn{border:0;border-radius:6px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:14px;margin-right:8px;margin-bottom:8px}.btn-primary{background:var(--primary);color:#fff}.btn-secondary{background:#e0e0e0;color:#333}.btn-danger{background:var(--danger);color:#fff}.btn-success{background:#4CAF50;color:#fff}.list-container{max-height:400px;overflow-y:auto;margin:16px 0;border:1px solid #e0e0e0;border-radius:6px}.list-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid #f0f0f0}.list-item:last-child{border-bottom:0}.list-item-info{flex:1}.list-item-name{font-weight:700;font-size:14px}.list-item-detail{font-size:12px;color:#666;margin-top:2px}.list-item-actions{display:flex;gap:8px}.empty-state{text-align:center;padding:40px;color:#999}.status-msg{padding:12px;border-radius:6px;margin:12px 0;font-size:13px;font-weight:700}.status-msg.success{background:#E8F5E9;color:#2E7D32}.status-msg.error{background:#FFEBEE;color:#C62828}.status-msg.info{background:#E3F2FD;color:#1976D2}.config-textarea{font-family:Roboto Mono,monospace;font-size:12px;min-height:200px}.bulk-textarea{font-size:13px;min-height:300px;line-height:1.6}.hint{font-size:11px;color:#666;margin-top:4px}@media(max-width:600px){.form-row{flex-direction:column}.tabs{flex-direction:column}.tab{min-width:100px}}
 </style>
@@ -35,6 +38,14 @@ function saveAppreciation(){let text=id('appreciationText').value.trim();if(!tex
 function loadFirebaseConfig(){id('firebaseConfigText').value=JSON.stringify(JSON.parse(localStorage.getItem('sffirebaseconfig')||JSON.stringify(firebaseConfig)),null,2)}function saveFirebaseConfig(){try{let x=JSON.parse(id('firebaseConfigText').value);if(!x.apiKey||!x.projectId)throw Error('apiKey and projectId are required');localStorage.setItem('sffirebaseconfig',JSON.stringify(x));showStatus('configStatus','Config saved - reload page to apply','success')}catch(e){showStatus('configStatus','Invalid JSON: '+e.message,'error')}}function testConnection(){showStatus('configStatus','Firebase configuration loaded locally. Reload to initialize.','info')}
 function loadScanNote(){const settings=JSON.parse(localStorage.getItem('sfsettingsv1')||'{}');id('scanNoteEn1').value=settings.scanNote?.en1||'';id('scanNoteTa1').value=settings.scanNote?.ta1||'';id('scanNoteEn2').value=settings.scanNote?.en2||'';id('scanNoteTa2').value=settings.scanNote?.ta2||''}function saveScanNote(){const settings=JSON.parse(localStorage.getItem('sfsettingsv1')||'{}');settings.scanNote={en1:id('scanNoteEn1').value.trim(),ta1:id('scanNoteTa1').value.trim(),en2:id('scanNoteEn2').value.trim(),ta2:id('scanNoteTa2').value.trim()};localStorage.setItem('sfsettingsv1',JSON.stringify(settings));showStatus('scanNoteStatus','QR instructions saved','success')}
 loadLocal();
+</script>
+<script>
+// PWA offline support (same worker as index.html); silent on failure.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function () {});
+  });
+}
 </script>
 </body>
 </html>
